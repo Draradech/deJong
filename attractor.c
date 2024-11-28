@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <math.h>
 #include <immintrin.h>
@@ -12,16 +13,13 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define NUM_THREADS 32
-#define BASE_STEPS 200000
+#define BASE_STEPS 800000
 #define BASE_RESOLUTION (1440 * 1440)
 #define FADE_FACTOR 0.98
 
 typedef struct
 {
-   unsigned char r;
-   unsigned char g;
-   unsigned char b;
-   unsigned char a;
+   uint16_t r, g, b, a;
 } rgb;
 
 typedef struct
@@ -53,52 +51,55 @@ static double frand(double max)
    return max * rand() / RAND_MAX;
 }
 
-static void fadeby_avx(float f)
+static void fadeby_avx16(float f)
 {
-   __m256i mul = _mm256_set1_epi16(f * 256);
-   __m256i mask = _mm256_set1_epi16(0xFF);
-   
-   for (int y = 0; y < texSize; y++)
+   int pixels = texSize * texSize;
+   uint16_t scaled_f = f * 65536;
+   __m256i mul = _mm256_set1_epi16(scaled_f);
+   for (int i = 0; i < pixels; i += 4) // Process 4 64bit pixels at a time
    {
-      for (int x = 0; x < texSize; x += 8)
-      {
-         int i = y * texSize + x;
-         __m256i p = _mm256_load_si256((__m256i*)&tex[i]);
-         
-         // Separate odd and even bytes
-         __m256i even = _mm256_and_si256(p, mask);
-         __m256i odd = _mm256_and_si256(_mm256_srli_epi16(p, 8), mask);
-         
-         // Multiply each
-         even = _mm256_mullo_epi16(even, mul);
-         odd = _mm256_mullo_epi16(odd, mul);
-         
-         // Divide by 256 (shift right by 8)
-         even = _mm256_srli_epi16(even, 8);
-         odd = _mm256_srli_epi16(odd, 8);
+      __m256i p = _mm256_load_si256((__m256i*)&tex[i]);
+      // taking only the high 16 bits of the multiplication result divides by 65536, we scaled f accordingly
+      p = _mm256_mulhi_epu16(p, mul);
+      _mm256_store_si256((__m256i*)&tex[i], p);
+   }
+}
 
-         // move odd bytes back to high position
-         odd = _mm256_slli_epi16(odd, 8);
-         
-         // Combine results
-         p = _mm256_or_si256(even, odd);
-         _mm256_store_si256((__m256i*)&tex[i], p);
-      }
+static void fadeby_avx8(float f)
+{
+   int pixels = texSize * texSize;
+   uint16_t scaled_f = f * 256;
+   __m256i mul = _mm256_set1_epi16(scaled_f);
+   __m256i mask = _mm256_set1_epi16(0xFF);
+   for (int i = 0; i < pixels; i += 8) // Process 8 32bit pixels at a time
+   {
+      __m256i p = _mm256_load_si256((__m256i*)&tex[i]);
+      // Separate odd and even bytes (there is no mulhi_epu8)
+      __m256i even = _mm256_and_si256(p, mask);
+      __m256i odd = _mm256_and_si256(_mm256_srli_epi16(p, 8), mask);
+      // Multiply each
+      even = _mm256_mullo_epi16(even, mul);
+      odd = _mm256_mullo_epi16(odd, mul);
+      // Divide by 256 (shift right by 8)
+      even = _mm256_srli_epi16(even, 8);
+      odd = _mm256_srli_epi16(odd, 8);
+      // move odd bytes back to high position
+      odd = _mm256_slli_epi16(odd, 8);
+      // Combine results
+      p = _mm256_or_si256(even, odd);
+      _mm256_store_si256((__m256i*)&tex[i], p);
    }
 }
 
 static void fadeby(float f)
 {
-   for (int y = 0; y < texSize; y++)
-   {
-      for (int x = 0; x < texSize; x++)
-      {
-         int i = y * texSize + x;
-         tex[i].r = tex[i].r * f;
-         tex[i].g = tex[i].g * f;
-         tex[i].b = tex[i].b * f;
-      }
-   }
+    int pixels = texSize * texSize;
+    for (int i = 0; i < pixels; i++)
+    {
+        tex[i].r = tex[i].r * f;
+        tex[i].g = tex[i].g * f;
+        tex[i].b = tex[i].b * f;
+    }
 }
 
 void* attractor_thread(void* arg)
@@ -108,7 +109,7 @@ void* attractor_thread(void* arg)
       // Wait for the main thread to signal that a new frame is ready
       pthread_barrier_wait(&frame_start);
       state->over = 0;
-      double bright = 10;
+      double bright = 500e6 / BASE_STEPS;
       for (int i = 0; i < state->steps; i++)
       {
          double x2 = sin(a * state->y1) - cos(b * state->x1);
@@ -121,10 +122,10 @@ void* attractor_thread(void* arg)
          int x = x2 * 0.25 * texSize * 0.96 + texSize * 0.5;
          int y = y2 * 0.25 * texSize * 0.96 + texSize * 0.5;
          rgb col = tex[y * texSize + x];
-         col.r = MIN(col.r + dr, 255);
-         col.g = MIN(col.g + dg, 255);
-         col.b = MIN(col.b + db, 255); 
-         if (col.b == 255) state->over++;
+         col.r = MIN(col.r + dr, 65535);
+         col.g = MIN(col.g + dg, 65535);
+         col.b = MIN(col.b + db, 65535); 
+         if (col.b == 65535) state->over++;
          tex[y * texSize + x] = col;
          state->x1 = x2;
          state->y1 = y2;
@@ -140,7 +141,7 @@ static void render(int dt)
    timer_start("fade");
    if (avx)
    {
-      fadeby_avx(FADE_FACTOR);
+      fadeby_avx16(FADE_FACTOR);
    }
    else
    {
@@ -154,7 +155,7 @@ static void render(int dt)
    c = 4 * sin(t * 1.09);
    d = 4 * sin(t * 1.13);
 
-   // threads need random starting points each frame or they will all converge on the same point eventually
+   // threads need random starting points each frame or they will all converge on the same points eventually
    for(int i = 0; i < NUM_THREADS; i++)
    {
       states[i].x1 = frand(2.0) - 1.0;
@@ -221,7 +222,7 @@ void draw(void)
 {
    glEnable(GL_TEXTURE_2D);
    glBindTexture(GL_TEXTURE_2D, gltex);
-   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texSize, texSize, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex);
+   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16, texSize, texSize, 0, GL_RGBA, GL_UNSIGNED_SHORT, tex);
 
    int y0 = (screenH - texSize) / 2;
    int y1 = y0 + texSize;
