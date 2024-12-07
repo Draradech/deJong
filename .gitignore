@@ -4,3 +4,7 @@
 /pthreadVC3.dll
 /broken/
 /working/
+*.bc
+*.i
+*.o
+*.s

@@ -86,14 +86,14 @@ void timer_stop(const char* name) {
 }
 #endif
 
-void timer_report(int reset) {
+void timer_report(char* output, int reset) {
     for(int i = 0; i < active_timers; i++) {
-        printf("%s: %.3f ms avg (%.1f ms total, %d calls)\n",
+        sprintf(output, "%s: %.3f ms avg (%.1f ms total, %d calls)\n",
                timers[i].name,
                timers[i].total_ms / timers[i].calls,
                timers[i].total_ms,
                timers[i].calls);
-        
+        output += strlen(output);
         if(reset) {
             timers[i].total_ms = 0;
             timers[i].calls = 0;
