@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "timer.h"
 
@@ -47,6 +48,7 @@ void timer_stop(const char* name) {
     }
 }
 #else
+#include <time.h>
 static struct {
     struct timespec start;
     const char* name;

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 #include <GL/freeglut.h>
@@ -427,7 +428,7 @@ static void key_c(unsigned char k, int x, int y)
    }
 }
 
-
+void* traw;
 static void reshape(int w, int h)
 {
    screenW = w;
@@ -444,8 +445,11 @@ static void reshape(int w, int h)
    glViewport(0, 0, screenW, screenH);
    
    if(texSizeOld == texSize) return;
-
-   tex = malloc(sizeof(rgb) * texSize * texSize);
+   
+   if(traw) free(traw);
+   traw = malloc(sizeof(rgb) * texSize * texSize + 32);
+   // tex needs to be 32-bit aligned for avx2
+   tex = (rgb*)((uint64_t)traw / 32 * 32 + 32);
    memset(tex, 0, sizeof(rgb) * texSize * texSize);
 
    steps = step_factor * BASE_STEPS * texSize * texSize / BASE_RESOLUTION;
@@ -471,7 +475,7 @@ int main(int argc, char* argv[])
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-   t = frand(1e6);
+   t = frand(1e4);
 
    pthread_barrier_init(&frame_start, NULL, NUM_THREADS + 1);  // +1 for main thread
    pthread_barrier_init(&frame_end, NULL, NUM_THREADS + 1);  // +1 for main thread
