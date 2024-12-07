@@ -1,11 +1,10 @@
+/dejong.exe
+/dejong
 /freeglut.dll
-/attractor.exe
-/.vscode/
 /pthreadVC3.dll
-/broken/
-/working/
+/.vscode/
+/external/
 *.bc
 *.i
 *.o
 *.s
-/attractor
