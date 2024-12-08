@@ -312,8 +312,7 @@ void idle(void)
     // sleep until 1ms before frame
     if (timeNext - time > 1000)
     {
-        // don't sleep longer than 1ms
-        usleep(MIN(1000, timeNext - time - 1000));
+        usleep(timeNext - time - 1000);
         time = micros();
     }
 
