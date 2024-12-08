@@ -31,6 +31,9 @@
 
 #include <xmmintrin.h>
 
+/* this should just be default */
+#define USE_SSE2
+
 /* yes I know, the top of this file is quite ugly */
 
 #ifdef _MSC_VER /* visual c++ */
