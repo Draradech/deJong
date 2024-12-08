@@ -20,6 +20,51 @@
 #define BASE_STEPS (800000)
 #define BASE_BRIGHT (1e9)
 
+#ifdef _WIN32
+#include <windows.h>
+static int usDiv = 0;
+static int64_t micros()
+{
+    int64_t time;
+    if (usDiv == 0)
+    {
+        int64_t freq;
+        QueryPerformanceFrequency((LARGE_INTEGER*)&freq);
+        if (freq % 1000000 != 0)
+        {
+            fprintf(stderr, "PerfCounter non-integer fraction of us: freq = %lld\n", freq);
+            exit(0);
+        }
+        usDiv = freq / 1000000;
+    }
+    QueryPerformanceCounter((LARGE_INTEGER*)&time);
+
+    return time / usDiv;
+}
+
+void usleep(unsigned int usec)
+{
+	HANDLE timer;
+	LARGE_INTEGER ft;
+
+	ft.QuadPart = -(10 * (__int64)usec);
+
+	timer = CreateWaitableTimer(NULL, TRUE, NULL);
+	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
+	WaitForSingleObject(timer, INFINITE);
+	CloseHandle(timer);
+}
+#else
+#include <unistd.h> // usleep
+#include <sys/time.h>
+int64_t micros()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+}
+#endif
+
 typedef struct
 {
    const char* desc;
@@ -253,23 +298,32 @@ static void render(int dt)
       speed = 1.0 + (max_speed - 1.0) * (over - threshold) / (steps - threshold);
       speed = MAX(1.0, speed);
    }
-   if (t_from_dt) t += 0.00001 * dt * speed * anim_speed;
+   if (t_from_dt) t += 1e-8 * dt * speed * anim_speed;
    timer_stop("attr");
 }
 
 void idle(void)
 {
-   static unsigned long timeOld;
-   unsigned long time = glutGet(GLUT_ELAPSED_TIME);
-   int dt = time - timeOld;
-   if(dt < 16)
-   { 
-      // Not yet time for a new frame, back to mainloop
-      return;
-   }
-   timeOld = time;
-   render(dt);
-   glutPostRedisplay();
+    // next frame time
+    static int64_t timeLast;
+    int64_t time = micros();
+    int64_t timeNext = timeLast + 1e6 / 60; // target 60 fps
+
+    // sleep until 1ms before frame
+    if (timeNext - time > 1000)
+    {
+        // don't sleep longer than 1ms
+        usleep(MIN(1000, timeNext - time - 1000));
+        time = micros();
+    }
+
+    // busy wait last 1ms for accurate frame timing
+    if (time >= timeNext)
+    {
+        render(time - timeLast);
+        glutPostRedisplay();
+        timeLast = time;
+    }
 }
 
 char status[1024];
