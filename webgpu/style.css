@@ -1,0 +1,22 @@
+html,
+body {
+  background-color: #111111;
+  margin: 0;
+  height: 100%;
+}
+canvas {
+  display: block;
+  height: 100%;
+  aspect-ratio: 1;
+  margin: auto;
+}
+#info {
+  font-size: 18px;
+  font-family: monospace;
+  color: #cccccc;
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0.5em;
+}
