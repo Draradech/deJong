@@ -55,21 +55,20 @@ async function main() {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   const uniformValues = new Float32Array(numUniforms);
-  
+
   let redBuffer, greenBuffer, blueBuffer, computeBindGroup, renderBindGroup;
-  function createBuffers(bufsize)
-  {
-    if(redBuffer) redBuffer.destroy();
+  function createBuffers(bufsize) {
+    if (redBuffer) redBuffer.destroy();
     redBuffer = device.createBuffer({
       size: bufsize,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    if(greenBuffer) greenBuffer.destroy();
+    if (greenBuffer) greenBuffer.destroy();
     greenBuffer = device.createBuffer({
       size: bufsize,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    if(blueBuffer) blueBuffer.destroy();
+    if (blueBuffer) blueBuffer.destroy();
     blueBuffer = device.createBuffer({
       size: bufsize,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -77,25 +76,25 @@ async function main() {
     computeBindGroup = device.createBindGroup({
       label: "computeBindGroup",
       layout: computePipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: uniformBuffer } },
-          { binding: 1, resource: { buffer: redBuffer } },
-          { binding: 2, resource: { buffer: greenBuffer } },
-          { binding: 3, resource: { buffer: blueBuffer } },
-        ],
+      entries: [
+        { binding: 0, resource: { buffer: uniformBuffer } },
+        { binding: 1, resource: { buffer: redBuffer } },
+        { binding: 2, resource: { buffer: greenBuffer } },
+        { binding: 3, resource: { buffer: blueBuffer } },
+      ],
     });
     renderBindGroup = device.createBindGroup({
       label: "renderBindGroup",
       layout: renderPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: uniformBuffer } },
-          { binding: 4, resource: { buffer: redBuffer } },
-          { binding: 5, resource: { buffer: greenBuffer } },
-          { binding: 6, resource: { buffer: blueBuffer } },
-        ],
+      entries: [
+        { binding: 0, resource: { buffer: uniformBuffer } },
+        { binding: 4, resource: { buffer: redBuffer } },
+        { binding: 5, resource: { buffer: greenBuffer } },
+        { binding: 6, resource: { buffer: blueBuffer } },
+      ],
     });
   }
-  
+
   createBuffers(4);
 
   const observer = new ResizeObserver((entries) => {
@@ -112,13 +111,13 @@ async function main() {
       1,
       Math.min(height, device.limits.maxTextureDimension2D)
     );
-    
+
     createBuffers(width * height * 4);
   });
   observer.observe(canvas);
 
   let frame = 0;
-  let t = Math.random() * 1e4;
+  let t = Math.random() * 1e3;
   let then = 0;
   let numPoints = 1e6;
   let ctime = 16;
@@ -131,13 +130,18 @@ async function main() {
   const jsAverage = new RollingAverage();
   const infoElem = document.querySelector("#info");
 
+  canvas.addEventListener("click", () => {
+    const elem = document.documentElement;
+    elem.requestFullscreen();
+  });
+
   function render(now) {
     const deltaTime = now - then;
     then = now;
 
     const startTime = performance.now();
-    
-    let ratio = ctime / deltaTime;
+
+    let ratio = ctime / Math.min(deltaTime, 20);
     if (ratio > 0.7) numPoints /= 1.01;
     else if (ratio < 0.5) numPoints *= 1.01;
 
@@ -187,18 +191,24 @@ async function main() {
     });
 
     frameAverage.addSample(deltaTime);
-    
+
     infoElem.textContent = `\
 frame:   ${frameAverage.get().toFixed(2)}ms\
  (${(1000 / frameAverage.get()).toFixed(1)}fps)
 js:      ${jsAverage.get().toFixed(2)}ms
 compute: ${computeAverage.get().toFixed(2)}ms
 render:  ${renderAverage.get().toFixed(2)}ms
-points:  ${(numPoints/1e6).toFixed(1)}M`;
+
+points:  ${(numPoints / 1e6).toFixed(1)}M
+
+t:       ${t.toFixed(3)}
+a:       ${uniformValues[0].toFixed(3)}
+b:       ${uniformValues[1].toFixed(3)}
+c:       ${uniformValues[2].toFixed(3)}
+d:       ${uniformValues[3].toFixed(3)}`;
 
     const jsTime = performance.now() - startTime;
     jsAverage.addSample(jsTime);
-
 
     requestAnimationFrame(render);
   }

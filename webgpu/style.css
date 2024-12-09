@@ -1,6 +1,6 @@
 html,
 body {
-  background-color: #111111;
+  background-color: #000000;
   margin: 0;
   height: 100%;
 }
@@ -10,13 +10,20 @@ canvas {
   aspect-ratio: 1;
   margin: auto;
 }
-#info {
+#info, #what {
   font-size: 18px;
   font-family: monospace;
   color: #cccccc;
   position: absolute;
+  margin: 1em;
+  padding: 0.5em;
+  background-color: rgba(0, 0, 0, 0.8);
+}
+#info {
   top: 0;
   left: 0;
-  margin: 0;
-  padding: 0.5em;
+}
+#what {
+  top: 0;
+  right: 0;
 }
