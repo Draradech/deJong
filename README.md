@@ -17,3 +17,5 @@ b = 4 * sin(t * 1.07)
 c = 4 * sin(t * 1.09)
 d = 4 * sin(t * 1.13)
 ```
+## WebGPU
+If your browser supports WebGPU, you can try it here: https://draradech.github.io/deJong/webgpu/
