@@ -14,26 +14,23 @@ async function main() {
     function createDataBuffer(bufsize) {
         webgpu.createBuffer('data', bufsize + 1, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
     }
-    webgpu.addComputePass(shader, 'deJong', 16, new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4), {
-        begin: 0,
-        end: 1,
-    });
-    webgpu.addComputePass(shader, 'pass2', 1, new Map().set('uniform', 0).set('timestamp', 1).set('frameinfo', 2).set('indirect', 3));
-    webgpu.addComputePass(shader, 'deJong', 'indirect', new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4), {
-        begin: 0,
-        end: 1,
-    });
-    webgpu.addComputePass(shader, 'pass4', 1, new Map().set('uniform', 0).set('timestamp', 1).set('frameinfo', 2).set('indirect', 3));
-    webgpu.addComputePass(shader, 'deJong', 'indirect', new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4), {
-        begin: 0,
-        end: 1,
-    });
-    webgpu.addComputePass(shader, 'pass6', 1, new Map().set('timestamp', 1).set('frameinfo', 2));
-    webgpu.addRenderPass(shader, 'vs', 'fs', 3, new Map().set('uniform', 0).set('frameinfo', 2).set('data', 5), {
-        begin: 0,
-        end: 1,
-    });
-    webgpu.addComputePass(shader, 'pass7', 1, new Map().set('timestamp', 1).set('frameinfo', 2));
+    let bindings;
+    bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
+    webgpu.addComputePass(shader, 'deJong', 16, bindings, { begin: 0, end: 1 });
+    bindings = new Map().set('uniform', 0).set('timestamp', 1).set('frameinfo', 2).set('indirect', 3);
+    webgpu.addComputePass(shader, 'pass2', 1, bindings);
+    bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
+    webgpu.addComputePass(shader, 'deJong', 'indirect', bindings, { begin: 0, end: 1 });
+    bindings = new Map().set('uniform', 0).set('timestamp', 1).set('frameinfo', 2).set('indirect', 3);
+    webgpu.addComputePass(shader, 'pass4', 1, bindings);
+    bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
+    webgpu.addComputePass(shader, 'deJong', 'indirect', bindings, { begin: 0, end: 1 });
+    bindings = new Map().set('timestamp', 1).set('frameinfo', 2);
+    webgpu.addComputePass(shader, 'pass6', 1, bindings);
+    bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 5);
+    webgpu.addRenderPass(shader, 'vs', 'fs', 3, bindings, { begin: 0, end: 1 });
+    bindings = new Map().set('timestamp', 1).set('frameinfo', 2);
+    webgpu.addComputePass(shader, 'pass7', 1, bindings);
     /////////////////////////////////
     // time info readback from gpu //
     /////////////////////////////////
