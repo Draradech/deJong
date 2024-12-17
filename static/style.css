@@ -16,7 +16,6 @@ body {
 #graph {
   display: block;
   font-size: 18px;
-  font-family: monospace;
   color: #cccccc;
   position: absolute;
   margin: 1em;
