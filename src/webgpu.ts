@@ -227,7 +227,7 @@ export class WebGPU {
     this.passes.push(pass);
   }
 
-  public addBufferDownload(name: string, maxflight: number, callback: (arrayBuffer: ArrayBuffer) => void) {
+  public addBufferDownload(name: string, maxflight: number, callback: (data: ArrayBuffer) => void) {
     const pass: PassDefinition = {
       download: {
         buffer: name,

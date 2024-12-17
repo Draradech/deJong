@@ -14,6 +14,6 @@
   },
   "scripts": {
     "build": "tsc && copyfiles -u 1 static/* dist/",
-    "serve": "http-server dist"
+    "serve": "yarn build && http-server dist"
   }
 }
