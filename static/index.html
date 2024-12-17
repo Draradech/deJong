@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <canvas id="attractor"></canvas>
+    <canvas id="graph" width="350" height="350"></canvas>
+    <pre id="info">You may be missing WebGPU support</pre>
+    <pre id="what">
+Peter de Jong attractor
+  x2 = sin(a * y1) - cos(b * x1)
+  y2 = sin(c * x1) - cos(d * y1)
+
+Coloured by:
+  red:   abs(x2 - x1)
+  green: abs(y2 - y1)
+  blue:  1.0
+
+Animated by:
+  a = 4 * sin(t * 1.03)
+  b = 4 * sin(t * 1.07)
+  c = 4 * sin(t * 1.09)
+  d = 4 * sin(t * 1.13)
+    </pre>
+    <pre id="input"><table>
+        <tr>
+           <td>Inner Loop:</td>
+           <td><input id="loop" type="text" value="300" size="4"/></td>
+        </tr>
+        <tr>
+           <td>Brightness:</td>
+           <td><input id="bright" type="text" value="100" size="4"/> %</td>
+        </tr>
+        <tr>
+           <td>GPU Budget:</td>
+           <td><input id="budget" type="text" value="12" size="4"/> ms</td>
+        </tr>
+        <tr>
+           <td>Render Scale:</td>
+           <td><input id="scale" type="text" value="100" size="4"/> %</td>
+        </tr>
+     </table></pre>
+  </body>
+  <script src="dejong.js" type="module"></script>
+</html>
