@@ -75,7 +75,7 @@ fn pass2()
   var p3 = f32(info.p1p) / ratio_p1 * ratio_p3;
   p3 = max(p3, 0.);
   var iv3 = u32(p3 / f32(wgsz) / f32(wgsz) / uni.lpcnt);
-  iv3 = max(iv3, 0u);
+  iv3 = max(iv3, 1u);
   iv3 = min(iv3, 0xffffu);
   info.p3p = iv3 * wgsz * wgsz * u32(uni.lpcnt);
   exi.x = iv3;
@@ -96,7 +96,7 @@ fn pass4()
   var p5 = f32(info.p1p + info.p3p) / ratio_p13 * ratio_p5;
   p5 = max(p5, 0.);
   var iv5 = u32(p5 / f32(wgsz) / f32(wgsz) / uni.lpcnt);
-  iv5 = max(iv5, 0u);
+  iv5 = max(iv5, 1u);
   iv5 = min(iv5, 0xffffu);
   info.p5p = iv5 * wgsz * wgsz * u32(uni.lpcnt);
   info.p = info.p1p + info.p3p + info.p5p;
