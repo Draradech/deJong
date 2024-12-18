@@ -4,6 +4,25 @@ body {
   margin: 0;
   height: 100%;
 }
+a:link {
+  color: #cccccc;
+}
+a:visited {
+  color: #cccccc;
+}
+ul {
+  list-style-type: none;
+}
+#help table {
+  width: 100%;
+}
+#help table,
+#help td {
+  border: 1px solid #888888;
+  border-collapse: collapse;
+  padding: 0.5em;
+  margin: auto;
+}
 #attractor {
   display: block;
   height: 100%;
@@ -25,6 +44,17 @@ body {
   margin: 1em;
   padding: 0.5em;
   background-color: rgba(0, 0, 0, 0.8);
+}
+#help {
+  display: block;
+  font-family: monospace;
+  font-size: 18px;
+  color: #cccccc;
+  padding: 0.5em;
+  background-color: rgba(0, 0, 0, 0.8);
+  width: 1000px;
+  margin: auto;
+  line-height: 1.4;
 }
 #input {
   top: 0;
