@@ -68,13 +68,15 @@ fn pass2()
   info.p1p = 16u * wgsz * wgsz * u32(uni.lpcnt);
   info.p1s = time.start;
   info.p1e = time.end;
-  let t1 = f32(i32(info.p1e) - i32(info.p1s)) / 1000000.;
+  var t1 = f32(i32(info.p1e) - i32(info.p1s)) / 1000000.;
+  t1 = max(t1, 0.01); // no less than 10us
   let ratio_p1 = t1 / uni.budget;
   let ratio_p3 = .5 - ratio_p1;
   var p3 = f32(info.p1p) / ratio_p1 * ratio_p3;
   p3 = max(p3, 0.);
   var iv3 = u32(p3 / f32(wgsz) / f32(wgsz) / uni.lpcnt);
   iv3 = max(iv3, 0u);
+  iv3 = min(iv3, 0xffffu);
   info.p3p = iv3 * wgsz * wgsz * u32(uni.lpcnt);
   exi.x = iv3;
   exi.y = 1u;
@@ -87,13 +89,15 @@ fn pass4()
 {
   info.p3s = time.start;
   info.p3e = time.end;
-  let t13 = f32(i32(info.p3e) - i32(info.p1s)) / 1000000.;
+  var t13 = f32(i32(info.p3e) - i32(info.p1s)) / 1000000.;
+  t13 = max(t13, 0.01); // no less than 10us
   let ratio_p13 = t13 / uni.budget;
   let ratio_p5 = 1. - ratio_p13;
   var p5 = f32(info.p1p + info.p3p) / ratio_p13 * ratio_p5;
   p5 = max(p5, 0.);
   var iv5 = u32(p5 / f32(wgsz) / f32(wgsz) / uni.lpcnt);
   iv5 = max(iv5, 0u);
+  iv5 = min(iv5, 0xffffu);
   info.p5p = iv5 * wgsz * wgsz * u32(uni.lpcnt);
   info.p = info.p1p + info.p3p + info.p5p;
   exi.x = iv5;

@@ -185,9 +185,9 @@ flight:  ${downloadInfo.flight}`;
         }
         uniformValues[4] = frame;
         uniformValues[5] = canvas.width;
-        uniformValues[6] = parseInt(getInput('loop').value);
+        uniformValues[6] = parseInt(getInput('loop').value) || 32;
         uniformValues[7] = parseFloat(getInput('bright').value) * 4.9e-6;
-        uniformValues[8] = parseFloat(getInput('budget').value);
+        uniformValues[8] = Math.max(Math.min(parseFloat(getInput('budget').value) || 12, 100), 0.01);
         // execute
         webgpu.updateBuffer('uniform', uniformValues);
         webgpu.execute();
