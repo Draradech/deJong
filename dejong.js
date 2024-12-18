@@ -36,10 +36,13 @@ async function main() {
     /////////////////////////////////
     const gpuAverage = Array.from({ length: 5 }, () => new RollingAverage(60));
     const pointsAverage = Array.from({ length: 4 }, () => new RollingAverage(60));
-    let gtime, npoints;
+    let gtime, npoints, p1time, p2time, p3time;
     function readback(arrayBuffer) {
         const frameinfo = new Uint32Array(arrayBuffer);
         gtime = (frameinfo[7] - frameinfo[0]) / 1000000;
+        p1time = (frameinfo[1] - frameinfo[0]) / 1000000;
+        p2time = (frameinfo[3] - frameinfo[2]) / 1000000;
+        p3time = (frameinfo[5] - frameinfo[4]) / 1000000;
         npoints = frameinfo[11];
         gpuAverage[0].addSample(((frameinfo[1] - frameinfo[0]) | 0) / 1000000);
         gpuAverage[1].addSample(((frameinfo[3] - frameinfo[2]) | 0) / 1000000);
@@ -194,9 +197,12 @@ flight:  ${downloadInfo.flight}`;
         // ui
         updateInfoPanel(webgpu.downloadInfo());
         frameGraph.begin();
-        frameGraph.drawPoint(gtime, 'red', 0, 35);
-        frameGraph.drawPoint(ftime, 'lime', 0, 35);
-        frameGraph.drawPoint(jtime, 'yellow', 0, 35);
+        frameGraph.drawPoint(gtime, 'red', -1, 35);
+        frameGraph.drawPoint(p1time, 'darkgreen', -1, 35);
+        frameGraph.drawPoint(p2time, 'darkgoldenrod', -1, 35);
+        frameGraph.drawPoint(p3time, 'darkred', -1, 35);
+        frameGraph.drawPoint(ftime, 'lime', -1, 35);
+        frameGraph.drawPoint(jtime, 'yellow', -1, 35);
         frameGraph.drawPoint(npoints, 'cyan', 0.1e6, 1e9, true);
         frameGraph.end();
         // more timing
