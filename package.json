@@ -1,9 +1,9 @@
 {
   "devDependencies": {
     "@eslint/js": "^9.17.0",
-    "@webgpu/types": "^0.1.51",
+    "@webgpu/types": "^0.1.52",
     "eslint": "^9.17.0",
-    "globals": "^15.13.0",
+    "globals": "^15.14.0",
     "http-server": "^14.1.1",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2",
@@ -11,6 +11,6 @@
   },
   "scripts": {
     "build": "tsc  &&  mkdir -p dist/  &&  cp static/* dist/",
-    "serve": "http-server dist"
+    "serve": "npm run build && http-server dist"
   }
 }

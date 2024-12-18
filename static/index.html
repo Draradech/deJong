@@ -23,24 +23,53 @@ Animated by:
   c = 4 * sin(t * 1.09)
   d = 4 * sin(t * 1.13)</pre
     >
-    <pre id="input"><table>
+    <div id="input">
+      <table>
         <tr>
-           <td>Inner Loop:</td>
-           <td><input id="loop" type="text" value="300" size="4"/></td>
+          <td>animation speed:</td>
+          <td><input id="speed" type="number" value="100" class="number_in" /> %</td>
         </tr>
         <tr>
-           <td>Brightness:</td>
-           <td><input id="bright" type="text" value="100" size="4"/> %</td>
+          <td><input id="animate_t" type="checkbox" checked /> animate t:</td>
+          <td><input id="value_t" type="number" class="number_in" step="0.001" /></td>
         </tr>
         <tr>
-           <td>GPU Budget:</td>
-           <td><input id="budget" type="text" value="12" size="4"/> ms</td>
+          <td><input id="animate_a" type="checkbox" checked /> animate a:</td>
+          <td><input id="value_a" type="number" class="number_in" step="0.001" /></td>
         </tr>
         <tr>
-           <td>Render Scale:</td>
-           <td><input id="scale" type="text" value="100" size="4"/> %</td>
+          <td><input id="animate_b" type="checkbox" checked /> animate b:</td>
+          <td><input id="value_b" type="number" class="number_in" step="0.001" /></td>
         </tr>
-     </table></pre>
+        <tr>
+          <td><input id="animate_c" type="checkbox" checked /> animate c:</td>
+          <td><input id="value_c" type="number" class="number_in" step="0.001" /></td>
+        </tr>
+        <tr>
+          <td><input id="animate_d" type="checkbox" checked /> animate d:</td>
+          <td><input id="value_d" type="number" class="number_in" step="0.001" /></td>
+        </tr>
+        <tr>
+          <td>inner loop:</td>
+          <td><input id="loop" type="number" value="300" class="number_in" /></td>
+        </tr>
+        <tr>
+          <td>brightness:</td>
+          <td><input id="bright" type="number" value="100" class="number_in" /> %</td>
+        </tr>
+        <tr>
+          <td>gpu budget:</td>
+          <td><input id="budget" type="number" value="12" class="number_in" /> ms</td>
+        </tr>
+        <tr>
+          <td>render scale:</td>
+          <td><input id="scale" type="number" value="100" class="number_in" /> %</td>
+        </tr>
+        <tr>
+          <td colspan="2">press 'h' to hide ui</td>
+        </tr>
+      </table>
+    </div>
   </body>
   <script src="dejong.js" type="module"></script>
 </html>
