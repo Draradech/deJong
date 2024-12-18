@@ -11,8 +11,6 @@
   },
   "scripts": {
     "build": "tsc  &&  mkdir -p dist/  &&  cp static/* dist/",
-    "serve": "npm run build && http-server dist",
-    "deploy": "cd dist && git add * && git commit -a -m deploy && git push",
-    "info": "!! deploy expects dist to be a git worktree pointing to the deployment branch"
+    "serve": "npm run build && http-server dist"
   }
 }
