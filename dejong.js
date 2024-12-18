@@ -78,15 +78,6 @@ async function main() {
     });
     observer.observe(canvas);
     getInput('scale').onchange = resize;
-    function updateInput() {
-        uniformValues[6] = parseInt(getInput('loop').value);
-        uniformValues[7] = parseFloat(getInput('bright').value) * 4.9e-6;
-        uniformValues[8] = parseFloat(getInput('budget').value);
-    }
-    getInput('loop').onchange = updateInput;
-    getInput('bright').onchange = updateInput;
-    getInput('budget').onchange = updateInput;
-    updateInput();
     function toggleUi() {
         if (($('graph').style.visibility || 'visible') == 'visible') {
             $('graph').style.visibility = 'hidden';
@@ -125,7 +116,6 @@ async function main() {
     const frameGraph = new PointGraph(getCanvas('graph'));
     let ftime, jtime;
     let frame = 0;
-    let t = Math.random() * 1e3;
     let then = 0;
     function updateInfoPanel(downloadInfo) {
         $('info').textContent = `\
@@ -145,17 +135,11 @@ total:   ${gpuAverage[4].get().toFixed(2)}ms\
 
 txsize:  ${canvas.width}x${canvas.height}\
  (${((canvas.width * canvas.height * 4 * 3) / 1024 / 1024).toFixed(1)}MB)
+
 queue:   ${downloadInfo.staging}
-flight:  ${downloadInfo.flight}
-
-t:       ${t.toFixed(3)}
-a:       ${uniformValues[0].toFixed(3)}
-b:       ${uniformValues[1].toFixed(3)}
-c:       ${uniformValues[2].toFixed(3)}
-d:       ${uniformValues[3].toFixed(3)}
-
-press 'h' to hide ui`;
+flight:  ${downloadInfo.flight}`;
     }
+    let t = Math.random() * 1e3;
     function render(now) {
         // timing
         const startTime = performance.now();
@@ -164,13 +148,46 @@ press 'h' to hide ui`;
         frameAverage.addSample(ftime);
         // update uniforms
         frame++;
-        t += 1e-4;
-        uniformValues[0] = 4 * Math.sin(t * 1.03);
-        uniformValues[1] = 4 * Math.sin(t * 1.07);
-        uniformValues[2] = 4 * Math.sin(t * 1.09);
-        uniformValues[3] = 4 * Math.sin(t * 1.13);
+        if (getInput('animate_t').checked) {
+            t += 1e-6 * parseInt(getInput('speed').value);
+            getInput('value_t').value = t.toFixed(3);
+        }
+        else {
+            t = parseFloat(getInput('value_t').value);
+        }
+        if (getInput('animate_a').checked) {
+            uniformValues[0] = 4 * Math.sin(t * 1.03);
+            getInput('value_a').value = uniformValues[0].toFixed(3);
+        }
+        else {
+            uniformValues[0] = parseFloat(getInput('value_a').value);
+        }
+        if (getInput('animate_b').checked) {
+            uniformValues[1] = 4 * Math.sin(t * 1.07);
+            getInput('value_b').value = uniformValues[1].toFixed(3);
+        }
+        else {
+            uniformValues[1] = parseFloat(getInput('value_b').value);
+        }
+        if (getInput('animate_c').checked) {
+            uniformValues[2] = 4 * Math.sin(t * 1.09);
+            getInput('value_c').value = uniformValues[2].toFixed(3);
+        }
+        else {
+            uniformValues[2] = parseFloat(getInput('value_c').value);
+        }
+        if (getInput('animate_d').checked) {
+            uniformValues[3] = 4 * Math.sin(t * 1.13);
+            getInput('value_d').value = uniformValues[3].toFixed(3);
+        }
+        else {
+            uniformValues[3] = parseFloat(getInput('value_d').value);
+        }
         uniformValues[4] = frame;
         uniformValues[5] = canvas.width;
+        uniformValues[6] = parseInt(getInput('loop').value);
+        uniformValues[7] = parseFloat(getInput('bright').value) * 4.9e-6;
+        uniformValues[8] = parseFloat(getInput('budget').value);
         // execute
         webgpu.updateBuffer('uniform', uniformValues);
         webgpu.execute();

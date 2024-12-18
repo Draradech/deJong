@@ -10,11 +10,15 @@ body {
   aspect-ratio: 1;
   margin: auto;
 }
+.number_in {
+  width: 70px;
+}
 #info,
 #what,
 #input,
 #graph {
   display: block;
+  font-family: monospace;
   font-size: 18px;
   color: #cccccc;
   position: absolute;
@@ -22,7 +26,7 @@ body {
   padding: 0.5em;
   background-color: rgba(0, 0, 0, 0.8);
 }
-#info {
+#input {
   top: 0;
   left: 0;
 }
@@ -30,7 +34,7 @@ body {
   top: 0;
   right: 0;
 }
-#input {
+#info {
   bottom: 0;
   right: 0;
 }
