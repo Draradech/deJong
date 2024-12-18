@@ -123,11 +123,11 @@ frame:   ${frameAverage.get().toFixed(2)}ms\
  (${(1000 / frameAverage.get()).toFixed(1)}fps)
 js:      ${jsAverage.get().toFixed(2)}ms
 
-pass1:   ${gpuAverage[0].get().toFixed(2)}ms\
+pass 1:  ${gpuAverage[0].get().toFixed(2)}ms\
  ${(pointsAverage[0].get() / 1e6).toFixed(1)}M
-pass3:   ${gpuAverage[1].get().toFixed(2)}ms\
+pass 2:  ${gpuAverage[1].get().toFixed(2)}ms\
  ${(pointsAverage[1].get() / 1e6).toFixed(1)}M
-pass5:   ${gpuAverage[2].get().toFixed(2)}ms\
+pass 3:  ${gpuAverage[2].get().toFixed(2)}ms\
  ${(pointsAverage[2].get() / 1e6).toFixed(1)}M
 render:  ${gpuAverage[3].get().toFixed(2)}ms
 total:   ${gpuAverage[4].get().toFixed(2)}ms\
