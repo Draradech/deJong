@@ -12,25 +12,19 @@ export class WebGPU {
         const adapter = await navigator.gpu.requestAdapter({
             powerPreference: 'high-performance',
         });
-        if (adapter === null) {
+        if (adapter === null)
             throw `unable to aquire webgpu adapter`;
-        }
         webgpu.device = await adapter.requestDevice({
             requiredFeatures: ['timestamp-query'],
         });
-        if (webgpu.device === null) {
+        if (webgpu.device === null)
             throw `unable to aquire webgpu device`;
-        }
         webgpu.renderContext = canvas.getContext('webgpu');
-        if (webgpu.renderContext === null) {
+        if (webgpu.renderContext === null)
             throw `unable to aquire webgpu context`;
-        }
         webgpu.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
         const device = webgpu.device;
-        webgpu.renderContext.configure({
-            device,
-            format: webgpu.presentationFormat,
-        });
+        webgpu.renderContext.configure({ device, format: webgpu.presentationFormat });
         if (numts > 0) {
             webgpu.tsQuerySet = device.createQuerySet({
                 type: 'timestamp',
@@ -88,8 +82,6 @@ export class WebGPU {
     addComputePass(shader, entry, invocations, bindings, measure = {}) {
         if (this.device === null)
             throw 'no device';
-        if (this.tsQuerySet === null)
-            throw 'no ts query set';
         const pipeline = this.device.createComputePipeline({
             layout: 'auto',
             compute: {
@@ -99,6 +91,8 @@ export class WebGPU {
         });
         const passDescriptor = {};
         if (Object.keys(measure).length > 0) {
+            if (this.tsQuerySet === null)
+                throw 'no ts query set';
             passDescriptor.timestampWrites = { querySet: this.tsQuerySet };
             if (measure.begin !== undefined) {
                 passDescriptor.timestampWrites.beginningOfPassWriteIndex = measure.begin;
@@ -123,8 +117,6 @@ export class WebGPU {
     addRenderPass(shader, vsentry, fsentry, vertices, bindings, measure = {}) {
         if (this.device === null)
             throw 'no device';
-        if (this.tsQuerySet === null)
-            throw 'no ts query set';
         if (this.presentationFormat === null)
             throw 'no presentation format';
         if (this.renderContext === null)
@@ -151,6 +143,8 @@ export class WebGPU {
             ],
         };
         if (Object.keys(measure).length > 0) {
+            if (this.tsQuerySet === null)
+                throw 'no ts query set';
             passDescriptor.timestampWrites = { querySet: this.tsQuerySet };
             if (measure.begin !== undefined) {
                 passDescriptor.timestampWrites.beginningOfPassWriteIndex = measure.begin;
@@ -195,8 +189,6 @@ export class WebGPU {
     execute() {
         if (this.device === null)
             throw 'no device';
-        if (this.tsQuerySet === null)
-            throw 'no ts query set';
         if (this.renderContext === null)
             throw 'no render context';
         const encoder = this.device.createCommandEncoder();
@@ -218,6 +210,8 @@ export class WebGPU {
                 }
                 pass.end();
                 if (Object.keys(passDef.compute.measure).length > 0) {
+                    if (this.tsQuerySet === null)
+                        throw 'no ts query set';
                     const buffer = this.buffers.get('timestamp'); // TODO: remove hardcoded target buffer. API?
                     if (buffer)
                         encoder.resolveQuerySet(this.tsQuerySet, 0, this.tsQuerySet.count, buffer, 0);
@@ -235,6 +229,8 @@ export class WebGPU {
                 pass.draw(passDef.render.vertices);
                 pass.end();
                 if (Object.keys(passDef.render.measure).length > 0) {
+                    if (this.tsQuerySet === null)
+                        throw 'no ts query set';
                     const buffer = this.buffers.get('timestamp'); // TODO: remove hardcoded target buffer. API?
                     if (buffer)
                         encoder.resolveQuerySet(this.tsQuerySet, 0, this.tsQuerySet.count, buffer, 0);
