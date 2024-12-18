@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="help">
+      <p>
+        This is a WebGPU renderer (using compute shaders) for the Peter de Jong attractor. This attractor was first
+        published 1987 in Scientific American in an article by A. K. Dewdney as a reader submission (that reader being
+        Peter de Jong). It was documented by Paul Bourke on his
+        <a href="https://paulbourke.net/fractals/peterdejong/">website</a> and in "The Pattern Book: Fractals, Art and
+        Nature" (1995). The color scheme, animation and this implementation are by
+        <a href="https://github.com/Draradech">me</a>. The attractor is defined by an iterated function, calculating a
+        coordinate on each iteration:
+      </p>
+      <ul>
+        <li>x2 = sin(a * y1) - cos(b * x1)</li>
+        <li>y2 = sin(c * x1) - cos(d * y1)</li>
+      </ul>
+      <p>
+        These points jump around chaotically, but if you draw a small dot at each point (for millions of iterations)
+        these unexpectedly detailed patterns appear. The colors are controlled by the difference from the last to the
+        current point:
+      </p>
+      <ul>
+        <li>red += abs(x2 - x1)</li>
+        <li>green += abs(y2 - y1)</li>
+        <li>blue += 1.0</li>
+      </ul>
+      <p>
+        The animation is controlled by a global time parameter, from which the 4 attractor parameters are calculated
+        like this:
+      </p>
+      <ul>
+        <li>a = 4 * sin(t * 1.03)</li>
+        <li>b = 4 * sin(t * 1.07)</li>
+        <li>c = 4 * sin(t * 1.09)</li>
+        <li>d = 4 * sin(t * 1.13)</li>
+      </ul>
+      <p>
+        The compute shader runs short bursts of the attractor in each thread (from random starting points) to simulate
+        sequential calculation. As the attractor is chaotic, starting over from a new random starting point is almost as
+        good as continuing on. The implementation tries to scale the number of iterations to the available hardware.
+        Source code is
+        <a href="https://github.com/Draradech/deJong">here</a>.
+      </p>
+      <p>
+        The info panel in the bottom right lists the timing and number of iterations for each shader pass. The graph in
+        the bottomm left has: cyan - total number of iterations (log scale), green - frame time, red - gpu time, yellow
+        - javascript time.
+      </p>
+      <table>
+        <tr>
+          <td colspan="2">Changeable parameter description:</td>
+        </tr>
+        <tr>
+          <td>animation speed<br />&nbsp;</td>
+          <td>controls how fast t is increased<br />&nbsp;</td>
+        </tr>
+        <tr>
+          <td>t<br />&nbsp;</td>
+          <td>
+            time parameter for the animation<br />
+            can be changed manually if "animate" is switched off
+          </td>
+        </tr>
+        <tr>
+          <td>a - d<br />&nbsp;</td>
+          <td>
+            attractor parameter (see formula)<br />
+            can be changed manually if "set from t" is switched off
+          </td>
+        </tr>
+        <tr>
+          <td>inner loop<br />&nbsp;</td>
+          <td>
+            how many iterations are calculated for a single shader run<br />
+            decrease for weak gpus and mobile
+          </td>
+        </tr>
+        <tr>
+          <td>brightness<br />&nbsp;</td>
+          <td>brighten or darken the final image<br />&nbsp;</td>
+        </tr>
+        <tr>
+          <td>gpu budget<br />&nbsp;</td>
+          <td>how much time per frame the automatic work assignement is trying to use<br />&nbsp;</td>
+        </tr>
+        <tr>
+          <td>render scale<br />&nbsp;</td>
+          <td>
+            changes the resolution of the buffer used to accumulate color information<br />
+            smaller values can help on weak gpus and mobile
+          </td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>
