@@ -41,8 +41,13 @@
       <p>
         The compute shader runs short bursts of the attractor in each thread (from random starting points) to simulate
         sequential calculation. As the attractor is chaotic, starting over from a new random starting point is almost as
-        good as continuing on. The implementation tries to scale the number of iterations to the available hardware.
-        Source code is
+        good as continuing on.
+      </p>
+      <p>
+        The implementation tries to scale the number of iterations to the available hardware. It does this by running
+        the attractor in multiple passes. Pass 1 is a fixed number of invocations. Pass 2 calculates how many points it
+        can run until 50% of the time budget is used based on the timing information of pass 1. Pass 3 then does the
+        same for 100% of the time budget based on the combined timing information of pass 1 and pass 2. Source code is
         <a href="https://github.com/Draradech/deJong">here</a>.
       </p>
       <p>
@@ -52,7 +57,10 @@
       </p>
       <table>
         <tr>
-          <td colspan="2">Changeable parameter description:</td>
+          <td colspan="2">
+            changeable parameter description<br />
+            input elements are number inputs - you can use up and down arrow to scroll through values
+          </td>
         </tr>
         <tr>
           <td>animation speed<br />&nbsp;</td>

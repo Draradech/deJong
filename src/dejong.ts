@@ -5,42 +5,51 @@ async function main() {
   ///////////////////////////////
   // webgpu setup              //
   ///////////////////////////////
-  const webgpu = await WebGPU.create(getCanvas('attractor'), 2);
+  const webgpu = await WebGPU.create(getCanvas('attractor'));
   const shader = await webgpu.shader('shader.wgsl');
+  webgpu.createTsQuery('tsquery', 2);
 
   const uniformValues = new Float32Array(9);
   webgpu.createBuffer('uniform', uniformValues.length, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   webgpu.createBuffer('frameinfo', 13, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
   webgpu.createBuffer('timestamp', 4, GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.STORAGE);
   webgpu.createBuffer('indirect', 3, GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE);
+
   function createDataBuffer(bufsize: number) {
     webgpu.createBuffer('data', bufsize + 1, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    // why +1?: on chrome-windows-nvidia this shader runs more than twice as fast with buffers not a multiple of 4096
   }
 
-  let bindings;
-  bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
-  webgpu.addComputePass(shader, 'deJong', 16, bindings, { begin: 0, end: 1 });
+  webgpu.addClear('data');
+
+  let bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
+  webgpu.addComputePass(shader, 'deJong', 16, bindings, { query: 'tsquery', begin: 0, end: 1 });
+  webgpu.addResolveQuery('tsquery', 'timestamp');
 
   bindings = new Map().set('uniform', 0).set('timestamp', 1).set('frameinfo', 2).set('indirect', 3);
-  webgpu.addComputePass(shader, 'pass2', 1, bindings);
+  webgpu.addComputePass(shader, 'pass1t', 1, bindings);
 
   bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
-  webgpu.addComputePass(shader, 'deJong', 'indirect', bindings, { begin: 0, end: 1 });
+  webgpu.addComputePassIndirect(shader, 'deJong', 'indirect', bindings, { query: 'tsquery', begin: 0, end: 1 });
+  webgpu.addResolveQuery('tsquery', 'timestamp');
 
   bindings = new Map().set('uniform', 0).set('timestamp', 1).set('frameinfo', 2).set('indirect', 3);
-  webgpu.addComputePass(shader, 'pass4', 1, bindings);
+  webgpu.addComputePass(shader, 'pass2t', 1, bindings);
 
   bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
-  webgpu.addComputePass(shader, 'deJong', 'indirect', bindings, { begin: 0, end: 1 });
+  webgpu.addComputePassIndirect(shader, 'deJong', 'indirect', bindings, { query: 'tsquery', begin: 0, end: 1 });
+  webgpu.addResolveQuery('tsquery', 'timestamp');
 
   bindings = new Map().set('timestamp', 1).set('frameinfo', 2);
-  webgpu.addComputePass(shader, 'pass6', 1, bindings);
+  webgpu.addComputePass(shader, 'pass3t', 1, bindings);
 
   bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 5);
-  webgpu.addRenderPass(shader, 'vs', 'fs', 3, bindings, { begin: 0, end: 1 });
+  webgpu.addRenderPass(shader, 'vs', 'fs', 3, bindings, { query: 'tsquery', begin: 0, end: 1 });
 
   bindings = new Map().set('timestamp', 1).set('frameinfo', 2);
-  webgpu.addComputePass(shader, 'pass7', 1, bindings);
+  webgpu.addComputePass(shader, 'passrt', 1, bindings);
+
+  webgpu.addBufferDownload('frameinfo', 4, readback);
 
   /////////////////////////////////
   // time info readback from gpu //
@@ -65,7 +74,6 @@ async function main() {
     pointsAverage[2].addSample(frameinfo[10]);
     pointsAverage[3].addSample(frameinfo[11]);
   }
-  webgpu.addBufferDownload('frameinfo', 4, readback);
 
   ///////////////////////////////
   // ui setup                  //

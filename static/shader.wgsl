@@ -20,15 +20,15 @@ struct timestamp {
 struct frameinfo {
   p1s: u32,
   p1e: u32,
+  p2s: u32,
+  p2e: u32,
   p3s: u32,
   p3e: u32,
-  p5s: u32,
-  p5e: u32,
-  rps: u32,
-  rpe: u32,
+  prs: u32,
+  pre: u32,
   p1p: u32,
+  p2p: u32,
   p3p: u32,
-  p5p: u32,
   p:   u32,
   pas: u32
 }
@@ -63,7 +63,7 @@ fn pcg3df(vin: vec3u) -> vec3f
 }
 
 @compute @workgroup_size(1)
-fn pass2()
+fn pass1t()
 {
   info.p1p = 16u * wgsz * wgsz * u32(uni.lpcnt);
   info.p1s = time.start;
@@ -71,13 +71,35 @@ fn pass2()
   var t1 = f32(i32(info.p1e) - i32(info.p1s)) / 1000000.;
   t1 = max(t1, 0.01); // no less than 10us
   let ratio_p1 = t1 / uni.budget;
-  let ratio_p3 = .5 - ratio_p1;
-  var p3 = f32(info.p1p) / ratio_p1 * ratio_p3;
+  let ratio_p2 = .5 - ratio_p1;
+  var p2 = f32(info.p1p) / ratio_p1 * ratio_p2;
+  p2 = max(p2, 0.);
+  var iv2 = u32(p2 / f32(wgsz) / f32(wgsz) / uni.lpcnt);
+  iv2 = max(iv2, 1u);
+  iv2 = min(iv2, 0xffffu);
+  info.p2p = iv2 * wgsz * wgsz * u32(uni.lpcnt);
+  exi.x = iv2;
+  exi.y = 1u;
+  exi.z = 1u;
+  info.pas = 2u;
+}
+
+@compute @workgroup_size(1)
+fn pass2t()
+{
+  info.p2s = time.start;
+  info.p2e = time.end;
+  var t12 = f32(i32(info.p2e) - i32(info.p1s)) / 1000000.;
+  t12 = max(t12, 0.01); // no less than 10us
+  let ratio_p12 = t12 / uni.budget;
+  let ratio_p3 = 1. - ratio_p12;
+  var p3 = f32(info.p1p + info.p2p) / ratio_p12 * ratio_p3;
   p3 = max(p3, 0.);
   var iv3 = u32(p3 / f32(wgsz) / f32(wgsz) / uni.lpcnt);
   iv3 = max(iv3, 1u);
   iv3 = min(iv3, 0xffffu);
   info.p3p = iv3 * wgsz * wgsz * u32(uni.lpcnt);
+  info.p = info.p1p + info.p2p + info.p3p;
   exi.x = iv3;
   exi.y = 1u;
   exi.z = 1u;
@@ -85,39 +107,17 @@ fn pass2()
 }
 
 @compute @workgroup_size(1)
-fn pass4()
+fn pass3t()
 {
   info.p3s = time.start;
   info.p3e = time.end;
-  var t13 = f32(i32(info.p3e) - i32(info.p1s)) / 1000000.;
-  t13 = max(t13, 0.01); // no less than 10us
-  let ratio_p13 = t13 / uni.budget;
-  let ratio_p5 = 1. - ratio_p13;
-  var p5 = f32(info.p1p + info.p3p) / ratio_p13 * ratio_p5;
-  p5 = max(p5, 0.);
-  var iv5 = u32(p5 / f32(wgsz) / f32(wgsz) / uni.lpcnt);
-  iv5 = max(iv5, 1u);
-  iv5 = min(iv5, 0xffffu);
-  info.p5p = iv5 * wgsz * wgsz * u32(uni.lpcnt);
-  info.p = info.p1p + info.p3p + info.p5p;
-  exi.x = iv5;
-  exi.y = 1u;
-  exi.z = 1u;
-  info.pas = 5u;
 }
 
 @compute @workgroup_size(1)
-fn pass6()
+fn passrt()
 {
-  info.p5s = time.start;
-  info.p5e = time.end;
-}
-
-@compute @workgroup_size(1)
-fn pass7()
-{
-  info.rps = time.start;
-  info.rpe = time.end;
+  info.prs = time.start;
+  info.pre = time.end;
   info.pas = 1u;
 }
 
