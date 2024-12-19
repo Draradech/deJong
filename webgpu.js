@@ -4,10 +4,10 @@ export class WebGPU {
         this.renderContext = null;
         this.presentationFormat = null;
         this.buffers = new Map();
+        this.queries = new Map();
         this.passes = new Array();
-        this.tsQuerySet = null;
     }
-    static async create(canvas, numts) {
+    static async create(canvas) {
         const webgpu = new WebGPU();
         const adapter = await navigator.gpu.requestAdapter({
             powerPreference: 'high-performance',
@@ -25,13 +25,15 @@ export class WebGPU {
         webgpu.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
         const device = webgpu.device;
         webgpu.renderContext.configure({ device, format: webgpu.presentationFormat });
-        if (numts > 0) {
-            webgpu.tsQuerySet = device.createQuerySet({
-                type: 'timestamp',
-                count: numts,
-            });
-        }
         return webgpu;
+    }
+    createTsQuery(name, num) {
+        if (this.device === null)
+            throw 'no device';
+        this.queries.set(name, this.device.createQuerySet({
+            type: 'timestamp',
+            count: num,
+        }));
     }
     async shader(shaderfile) {
         if (this.device === null)
@@ -79,7 +81,13 @@ export class WebGPU {
             }
         }
     }
-    addComputePass(shader, entry, invocations, bindings, measure = {}) {
+    addComputePass(shader, entry, invocations, bindings, measure = null) {
+        this.addComputePassInternal(shader, entry, invocations, bindings, measure);
+    }
+    addComputePassIndirect(shader, entry, indirectbuffer, bindings, measure = null) {
+        this.addComputePassInternal(shader, entry, indirectbuffer, bindings, measure);
+    }
+    addComputePassInternal(shader, entry, invocations, bindings, measure) {
         if (this.device === null)
             throw 'no device';
         const pipeline = this.device.createComputePipeline({
@@ -90,15 +98,16 @@ export class WebGPU {
             },
         });
         const passDescriptor = {};
-        if (Object.keys(measure).length > 0) {
-            if (this.tsQuerySet === null)
-                throw 'no ts query set';
-            passDescriptor.timestampWrites = { querySet: this.tsQuerySet };
-            if (measure.begin !== undefined) {
-                passDescriptor.timestampWrites.beginningOfPassWriteIndex = measure.begin;
-            }
-            if (measure.end !== undefined) {
-                passDescriptor.timestampWrites.endOfPassWriteIndex = measure.end;
+        if (measure) {
+            const query = this.queries.get(measure.query);
+            if (query) {
+                passDescriptor.timestampWrites = { querySet: query };
+                if (measure.begin !== undefined) {
+                    passDescriptor.timestampWrites.beginningOfPassWriteIndex = measure.begin;
+                }
+                if (measure.end !== undefined) {
+                    passDescriptor.timestampWrites.endOfPassWriteIndex = measure.end;
+                }
             }
         }
         const pass = {
@@ -114,7 +123,7 @@ export class WebGPU {
         this.updateBindGroup(pass);
         this.passes.push(pass);
     }
-    addRenderPass(shader, vsentry, fsentry, vertices, bindings, measure = {}) {
+    addRenderPass(shader, vsentry, fsentry, vertices, bindings, measure = null) {
         if (this.device === null)
             throw 'no device';
         if (this.presentationFormat === null)
@@ -142,15 +151,16 @@ export class WebGPU {
                 },
             ],
         };
-        if (Object.keys(measure).length > 0) {
-            if (this.tsQuerySet === null)
-                throw 'no ts query set';
-            passDescriptor.timestampWrites = { querySet: this.tsQuerySet };
-            if (measure.begin !== undefined) {
-                passDescriptor.timestampWrites.beginningOfPassWriteIndex = measure.begin;
-            }
-            if (measure.end !== undefined) {
-                passDescriptor.timestampWrites.endOfPassWriteIndex = measure.end;
+        if (measure) {
+            const query = this.queries.get(measure.query);
+            if (query) {
+                passDescriptor.timestampWrites = { querySet: query };
+                if (measure.begin !== undefined) {
+                    passDescriptor.timestampWrites.beginningOfPassWriteIndex = measure.begin;
+                }
+                if (measure.end !== undefined) {
+                    passDescriptor.timestampWrites.endOfPassWriteIndex = measure.end;
+                }
             }
         }
         const pass = {
@@ -179,6 +189,23 @@ export class WebGPU {
         };
         this.passes.push(pass);
     }
+    addClear(name) {
+        const pass = {
+            clear: {
+                buffer: name,
+            },
+        };
+        this.passes.push(pass);
+    }
+    addResolveQuery(queryName, bufferName) {
+        const pass = {
+            resolve: {
+                query: queryName,
+                buffer: bufferName,
+            },
+        };
+        this.passes.push(pass);
+    }
     updateBuffer(name, values) {
         if (this.device === null)
             throw 'no device';
@@ -192,11 +219,14 @@ export class WebGPU {
         if (this.renderContext === null)
             throw 'no render context';
         const encoder = this.device.createCommandEncoder();
-        const buffer = this.buffers.get('data'); // TODO: remove hardcoded clear of data buffer. API?
-        if (buffer)
-            encoder.clearBuffer(buffer);
         for (const passDef of this.passes) {
-            if (passDef.compute) {
+            if (passDef.clear) {
+                const buffer = this.buffers.get(passDef.clear.buffer);
+                if (buffer) {
+                    encoder.clearBuffer(buffer);
+                }
+            }
+            else if (passDef.compute) {
                 const pass = encoder.beginComputePass(passDef.compute.descriptor);
                 pass.setPipeline(passDef.compute.pipeline);
                 pass.setBindGroup(0, passDef.compute.bindGroup);
@@ -209,13 +239,6 @@ export class WebGPU {
                         pass.dispatchWorkgroupsIndirect(buffer, 0);
                 }
                 pass.end();
-                if (Object.keys(passDef.compute.measure).length > 0) {
-                    if (this.tsQuerySet === null)
-                        throw 'no ts query set';
-                    const buffer = this.buffers.get('timestamp'); // TODO: remove hardcoded target buffer. API?
-                    if (buffer)
-                        encoder.resolveQuerySet(this.tsQuerySet, 0, this.tsQuerySet.count, buffer, 0);
-                }
             }
             else if (passDef.render) {
                 const view = this.renderContext.getCurrentTexture().createView();
@@ -228,12 +251,12 @@ export class WebGPU {
                 pass.setBindGroup(0, passDef.render.bindGroup);
                 pass.draw(passDef.render.vertices);
                 pass.end();
-                if (Object.keys(passDef.render.measure).length > 0) {
-                    if (this.tsQuerySet === null)
-                        throw 'no ts query set';
-                    const buffer = this.buffers.get('timestamp'); // TODO: remove hardcoded target buffer. API?
-                    if (buffer)
-                        encoder.resolveQuerySet(this.tsQuerySet, 0, this.tsQuerySet.count, buffer, 0);
+            }
+            else if (passDef.resolve) {
+                const buffer = this.buffers.get(passDef.resolve.buffer);
+                const query = this.queries.get(passDef.resolve.query);
+                if (buffer && query) {
+                    encoder.resolveQuerySet(query, 0, query.count, buffer, 0);
                 }
             }
             else if (passDef.download) {
