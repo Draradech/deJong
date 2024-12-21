@@ -9,7 +9,7 @@ async function main() {
   const shader = await webgpu.shader('shader.wgsl');
   webgpu.createTsQuery('tsquery', 2);
 
-  const uniformValues = new Float32Array(9);
+  const uniformValues = new Float32Array(10);
   webgpu.createBuffer('uniform', uniformValues.length, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   webgpu.createBuffer('frameinfo', 13, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
   webgpu.createBuffer('timestamp', 4, GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.STORAGE);
@@ -59,16 +59,17 @@ async function main() {
   let gtime: number, npoints: number, p1time: number, p2time: number, p3time: number;
   function readback(arrayBuffer: ArrayBuffer) {
     const frameinfo = new Uint32Array(arrayBuffer);
-    gtime = (frameinfo[7] - frameinfo[0]) / 1000000;
-    p1time = (frameinfo[1] - frameinfo[0]) / 1000000;
-    p2time = (frameinfo[3] - frameinfo[2]) / 1000000;
-    p3time = (frameinfo[5] - frameinfo[4]) / 1000000;
+    const tsres = parseFloat(getInput('tsres').value);
+    p1time = (((frameinfo[1] - frameinfo[0]) | 0) * tsres) / 1000000;
+    p2time = (((frameinfo[3] - frameinfo[2]) | 0) * tsres) / 1000000;
+    p3time = (((frameinfo[5] - frameinfo[4]) | 0) * tsres) / 1000000;
+    gtime = (((frameinfo[7] - frameinfo[0]) | 0) * tsres) / 1000000;
     npoints = frameinfo[11];
-    gpuAverage[0].addSample(((frameinfo[1] - frameinfo[0]) | 0) / 1000000);
-    gpuAverage[1].addSample(((frameinfo[3] - frameinfo[2]) | 0) / 1000000);
-    gpuAverage[2].addSample(((frameinfo[5] - frameinfo[4]) | 0) / 1000000);
-    gpuAverage[3].addSample(((frameinfo[7] - frameinfo[6]) | 0) / 1000000);
-    gpuAverage[4].addSample(((frameinfo[7] - frameinfo[0]) | 0) / 1000000);
+    gpuAverage[0].addSample((((frameinfo[1] - frameinfo[0]) | 0) * tsres) / 1000000);
+    gpuAverage[1].addSample((((frameinfo[3] - frameinfo[2]) | 0) * tsres) / 1000000);
+    gpuAverage[2].addSample((((frameinfo[5] - frameinfo[4]) | 0) * tsres) / 1000000);
+    gpuAverage[3].addSample((((frameinfo[7] - frameinfo[6]) | 0) * tsres) / 1000000);
+    gpuAverage[4].addSample((((frameinfo[7] - frameinfo[0]) | 0) * tsres) / 1000000);
     pointsAverage[0].addSample(frameinfo[8]);
     pointsAverage[1].addSample(frameinfo[9]);
     pointsAverage[2].addSample(frameinfo[10]);
@@ -208,6 +209,7 @@ flight:  ${downloadInfo.flight}`;
     uniformValues[6] = parseInt(getInput('loop').value) || 32;
     uniformValues[7] = parseFloat(getInput('bright').value) * 4.9e-6;
     uniformValues[8] = Math.max(Math.min(parseFloat(getInput('budget').value) || 12, 100), 0.01);
+    uniformValues[9] = parseFloat(getInput('tsres').value);
 
     // execute
     webgpu.updateBuffer('uniform', uniformValues);

@@ -7,7 +7,8 @@ struct uniforms {
   txsz:   f32,
   lpcnt:  f32,
   bright: f32,
-  budget: f32
+  budget: f32,
+  tsres:  f32
 };
 
 struct timestamp {
@@ -68,7 +69,7 @@ fn pass1t()
   info.p1p = 16u * wgsz * wgsz * u32(uni.lpcnt);
   info.p1s = time.start;
   info.p1e = time.end;
-  var t1 = f32(i32(info.p1e) - i32(info.p1s)) / 1000000.;
+  var t1 = f32(i32(info.p1e) - i32(info.p1s)) * uni.tsres / 1000000.;
   t1 = max(t1, 0.01); // no less than 10us
   let ratio_p1 = t1 / uni.budget;
   let ratio_p2 = .5 - ratio_p1;
@@ -89,7 +90,7 @@ fn pass2t()
 {
   info.p2s = time.start;
   info.p2e = time.end;
-  var t12 = f32(i32(info.p2e) - i32(info.p1s)) / 1000000.;
+  var t12 = f32(i32(info.p2e) - i32(info.p1s)) * uni.tsres / 1000000.;
   t12 = max(t12, 0.01); // no less than 10us
   let ratio_p12 = t12 / uni.budget;
   let ratio_p3 = 1. - ratio_p12;
