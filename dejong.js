@@ -14,7 +14,7 @@ async function main() {
     webgpu.createBuffer('indirect', 3, GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE);
     function createDataBuffer(bufsize) {
         webgpu.createBuffer('data', bufsize + 1, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        // why +1?: on chrome-windows-nvidia this shader runs more than twice as fast with buffers not a multiple of 4096
+        // why +1?: on chrome-windows-nvidia4070 this shader runs more than twice as fast with buffers not a multiple of 4096
     }
     webgpu.addClear('data');
     let bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 4);
@@ -64,13 +64,13 @@ async function main() {
     ///////////////////////////////
     // ui setup                  //
     ///////////////////////////////
-    let cw, cy;
+    let canvasDeviceWidth, canvasDeviceHeight;
     let firstrender = true;
     const canvas = getCanvas('attractor');
     function resize() {
         const scale = 0.01 * parseFloat(getInput('scale').value);
-        const width = cw * scale;
-        const height = cy * scale;
+        const width = canvasDeviceWidth * scale;
+        const height = canvasDeviceHeight * scale;
         const limit = 8192;
         canvas.width = Math.max(1, Math.min(width, limit));
         canvas.height = Math.max(1, Math.min(height, limit));
@@ -81,8 +81,10 @@ async function main() {
         }
     }
     const observer = new ResizeObserver((e) => {
-        cw = e[0].devicePixelContentBoxSize?.[0].inlineSize || e[0].contentBoxSize?.[0].inlineSize * devicePixelRatio;
-        cy = e[0].devicePixelContentBoxSize?.[0].blockSize || e[0].contentBoxSize?.[0].blockSize * devicePixelRatio;
+        canvasDeviceWidth =
+            e[0].devicePixelContentBoxSize?.[0].inlineSize || e[0].contentBoxSize?.[0].inlineSize * devicePixelRatio;
+        canvasDeviceHeight =
+            e[0].devicePixelContentBoxSize?.[0].blockSize || e[0].contentBoxSize?.[0].blockSize * devicePixelRatio;
         resize();
     });
     observer.observe(canvas);
@@ -122,10 +124,6 @@ async function main() {
     ////////////////////////////////
     const frameAverage = new RollingAverage(60);
     const jsAverage = new RollingAverage(60);
-    const frameGraph = new PointGraph(getCanvas('graph'));
-    let ftime, jtime;
-    let frame = 0;
-    let then = 0;
     function updateInfoPanel(downloadInfo) {
         $('info').textContent = `\
 frame:   ${frameAverage.get().toFixed(2)}ms\
@@ -149,6 +147,10 @@ queue:   ${downloadInfo.staging}
 flight:  ${downloadInfo.flight}`;
     }
     let t = Math.random() * 1e3;
+    const frameGraph = new PointGraph(getCanvas('graph'));
+    let ftime, jtime;
+    let frame = 0;
+    let then = 0;
     function render(now) {
         // timing
         const startTime = performance.now();
