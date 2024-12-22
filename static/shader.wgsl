@@ -127,33 +127,28 @@ fn deJong(@builtin(global_invocation_id) id: vec3u)
 {
   // random starting point per thread
   let rnd = pcg3df(vec3u(id.xy, u32(uni.frame) + info.pas));
-  var x1 = 2. * sin(6.28 * rnd.x);
-  var y1 = 2. * sin(6.28 * rnd.y);
+  var p1 = 2. * sin(6.28 * rnd.xy);
 
   // prerun to converge onto attractor from random starting point
   for(var i = 0u; i < 16; i++)
   {
-    let x2 = sin(uni.a * y1) - cos(uni.b * x1);
-    let y2 = sin(uni.c * x1) - cos(uni.d * y1);
-    x1 = x2;
-    y1 = y2;
+    let p2 = vec2f(sin(uni.a * p1.y) - cos(uni.b * p1.x),
+                   sin(uni.c * p1.x) - cos(uni.d * p1.y));
+    p1 = p2;
   }
 
   // uni.lpcnt iterations per thread
   for(var i = 0u; i < u32(uni.lpcnt); i++)
   {
-    let x2 = sin(uni.a * y1) - cos(uni.b * x1);
-    let y2 = sin(uni.c * x1) - cos(uni.d * y1);
-    let x = u32(x2 * 0.25 * uni.txsz * 0.96 + uni.txsz * 0.5);
-    let y = u32(y2 * 0.25 * uni.txsz * 0.96 + uni.txsz * 0.5);
-    let idx = (y * u32(uni.txsz) + x);
-    let dx = x2 - x1;
-    let dy = y2 - y1;
-    atomicAdd(&texa[idx][0], u32(256. * abs(dx)));
-    atomicAdd(&texa[idx][1], u32(256. * abs(dy)));
+    let p2 = vec2f(sin(uni.a * p1.y) - cos(uni.b * p1.x),
+                   sin(uni.c * p1.x) - cos(uni.d * p1.y));
+    let id = vec2u(p2 * 0.25 * uni.txsz * 0.96 + uni.txsz * 0.5);
+    let idx = (id.y * u32(uni.txsz) + id.x);
+    let dp = p2 - p1;
+    atomicAdd(&texa[idx][0], u32(256. * abs(dp.x)));
+    atomicAdd(&texa[idx][1], u32(256. * abs(dp.y)));
     atomicAdd(&texa[idx][2], 256u);
-    x1 = x2;
-    y1 = y2;
+    p1 = p2;
   }
 }
 
