@@ -7,6 +7,7 @@ struct uniforms {
   txsz:   f32,
   lpcnt:  f32,
   bright: f32,
+  gamma:  f32,
   budget: f32,
   tsres:  f32
 };
@@ -165,6 +166,7 @@ fn fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
   let px = vec2u(pos.xy);
   let idx = (px.x + (u32(uni.txsz) - px.y - 1) * u32(uni.txsz));
-  let col = vec3f(f32(tex[idx][0]), f32(tex[idx][1]), f32(tex[idx][2]));
-  return vec4f(col * uni.txsz  * uni.txsz * uni.bright / f32(info.p), 1);
+  let cnt = vec3f(f32(tex[idx][0]), f32(tex[idx][1]), f32(tex[idx][2]));
+  let col = cnt * uni.txsz  * uni.txsz * uni.bright / f32(info.p);
+  return vec4f(pow(col, vec3f(uni.gamma / 2.2)), 1);
 }

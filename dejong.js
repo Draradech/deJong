@@ -1,5 +1,6 @@
 import { RollingAverage, PointGraph, getCanvas, getInput, $ } from './utils.js';
 import { WebGPU } from './webgpu.js';
+
 async function main() {
     ///////////////////////////////
     // webgpu setup              //
@@ -7,7 +8,7 @@ async function main() {
     const webgpu = await WebGPU.create(getCanvas('attractor'));
     const shader = await webgpu.shader('shader.wgsl');
     webgpu.createTsQuery('tsquery', 2);
-    const uniformValues = new Float32Array(10);
+    const uniformValues = new Float32Array(11);
     webgpu.createBuffer('uniform', uniformValues.length, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     webgpu.createBuffer('frameinfo', 13, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
     webgpu.createBuffer('timestamp', 4, GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.STORAGE);
@@ -34,9 +35,11 @@ async function main() {
     webgpu.addComputePass(shader, 'pass3t', 1, bindings);
     bindings = new Map().set('uniform', 0).set('frameinfo', 2).set('data', 5);
     webgpu.addRenderPass(shader, 'vs', 'fs', 3, bindings, { query: 'tsquery', begin: 0, end: 1 });
+    webgpu.addResolveQuery('tsquery', 'timestamp');
     bindings = new Map().set('timestamp', 1).set('frameinfo', 2);
     webgpu.addComputePass(shader, 'passrt', 1, bindings);
     webgpu.addBufferDownload('frameinfo', 4, readback);
+
     /////////////////////////////////
     // time info readback from gpu //
     /////////////////////////////////
@@ -61,6 +64,7 @@ async function main() {
         pointsAverage[2].addSample(frameinfo[10]);
         pointsAverage[3].addSample(frameinfo[11]);
     }
+
     ///////////////////////////////
     // ui setup                  //
     ///////////////////////////////
@@ -81,10 +85,8 @@ async function main() {
         }
     }
     const observer = new ResizeObserver((e) => {
-        canvasDeviceWidth =
-            e[0].devicePixelContentBoxSize?.[0].inlineSize || e[0].contentBoxSize?.[0].inlineSize * devicePixelRatio;
-        canvasDeviceHeight =
-            e[0].devicePixelContentBoxSize?.[0].blockSize || e[0].contentBoxSize?.[0].blockSize * devicePixelRatio;
+        canvasDeviceWidth = e[0].devicePixelContentBoxSize?.[0].inlineSize || e[0].contentBoxSize?.[0].inlineSize * devicePixelRatio;
+        canvasDeviceHeight = e[0].devicePixelContentBoxSize?.[0].blockSize || e[0].contentBoxSize?.[0].blockSize * devicePixelRatio;
         resize();
     });
     observer.observe(canvas);
@@ -106,7 +108,6 @@ async function main() {
         }
     }
     document.onkeydown = (evt) => {
-        evt = evt || window.event;
         if (evt.key == 'h') {
             toggleUi();
         }
@@ -119,6 +120,7 @@ async function main() {
             document.documentElement.requestFullscreen();
         }
     };
+
     ////////////////////////////////
     // frame (render + ui update) //
     ////////////////////////////////
@@ -197,9 +199,10 @@ flight:  ${downloadInfo.flight}`;
         uniformValues[4] = frame;
         uniformValues[5] = canvas.width;
         uniformValues[6] = parseInt(getInput('loop').value) || 32;
-        uniformValues[7] = parseFloat(getInput('bright').value) * 4.9e-6;
-        uniformValues[8] = Math.max(Math.min(parseFloat(getInput('budget').value) || 12, 100), 0.01);
-        uniformValues[9] = parseFloat(getInput('tsres').value);
+        uniformValues[7] = parseFloat(getInput('bright').value) * 4e-6;
+        uniformValues[8] = parseFloat(getInput('gamma').value);
+        uniformValues[9] = Math.max(Math.min(parseFloat(getInput('budget').value) || 12, 100), 0.01);
+        uniformValues[10] = parseFloat(getInput('tsres').value);
         // execute
         webgpu.updateBuffer('uniform', uniformValues);
         webgpu.execute();
