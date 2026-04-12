@@ -11,6 +11,7 @@ struct uniform_t {
   timestamp_res: f32,
   screen_width: f32,
   screen_height: f32,
+  debug_overlay: f32,
 };
 
 struct timestamp_t {
@@ -157,8 +158,9 @@ fn dejong_color(texel: vec2u) -> vec3f {
   let texture_size = u32(uni.texture_size);
   let idx = texel.x + (texture_size - texel.y - 1u) * texture_size;
   let cnt = vec3f(f32(counts_ro[idx][0]), f32(counts_ro[idx][1]), f32(counts_ro[idx][2]));
-  let col = cnt * uni.texture_size * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
-  return pow(col, vec3f(uni.gamma));
+  var col = cnt * uni.texture_size * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
+  col = pow(col, vec3f(uni.gamma));
+  return clamp(col, vec3f(0.0), vec3f(1.0));
 }
 
 fn sample_dejong(pos: vec2f) -> vec3f {
@@ -177,9 +179,20 @@ fn sample_dejong(pos: vec2f) -> vec3f {
   return mix(c0, c1, frac.y);
 }
 
+fn overlay_alpha(pos: vec2f) -> f32 {
+  let panel_size = vec2f(320.0, 180.0);
+  let panel_pos = vec2f(uni.screen_width - panel_size.x - 16.0, 16.0);
+  let rel = pos - panel_pos;
+  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || any(rel >= panel_size) {
+    return 0.0;
+  }
+  return 0.95;
+}
+
 @fragment
 fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
   let col = sample_dejong(pos.xy);
-  return vec4f(col, 1);
+  let alpha = overlay_alpha(pos.xy);
+  return vec4f(mix(col, vec3f(5e-3), alpha), 1.0);
 }

@@ -74,7 +74,7 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::Escape) => event_loop.exit(),
-                    PhysicalKey::Code(KeyCode::KeyD) => app.dejong.toggle_debug_overlay(),
+                    PhysicalKey::Code(KeyCode::KeyD) => app.dejong.params.toggle_debug_overlay(),
                     PhysicalKey::Code(KeyCode::KeyF) => app.toggle_fullscreen(),
                     PhysicalKey::Code(KeyCode::KeyP) => app.dejong.params.toggle_pause(),
                     PhysicalKey::Code(KeyCode::ArrowUp) => app.dejong.params.adjust_speed_step(1),

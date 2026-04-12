@@ -25,6 +25,7 @@ pub struct UniformData {
     pub timestamp_res: f32,
     pub screen_width: f32,
     pub screen_height: f32,
+    pub debug_overlay: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +37,7 @@ pub struct Params {
     pub gamma: f32,
     pub scale: f32,
     pub paused: bool,
+    pub debug_overlay: bool,
 }
 
 impl Default for Params {
@@ -48,6 +50,7 @@ impl Default for Params {
             gamma: 1.8,
             scale: 100.0,
             paused: false,
+            debug_overlay: false,
         }
     }
 }
@@ -59,6 +62,10 @@ impl Params {
 
     pub fn toggle_pause(&mut self) {
         self.paused = !self.paused;
+    }
+
+    pub fn toggle_debug_overlay(&mut self) {
+        self.debug_overlay = !self.debug_overlay;
     }
 
     pub fn adjust_speed_step(&mut self, step_delta: i32) {
@@ -100,6 +107,7 @@ impl Params {
             timestamp_res,
             screen_width: screen_size.0 as f32,
             screen_height: screen_size.1 as f32,
+            debug_overlay: if self.debug_overlay { 1.0 } else { 0.0 },
             gamma: self.gamma,
         }
     }

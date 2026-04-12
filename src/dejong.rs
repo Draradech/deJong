@@ -78,18 +78,12 @@ impl Dejong {
         self.renderer.replace_buffer(self.data_id, data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
     }
 
-    pub fn toggle_debug_overlay(&mut self) {}
-
     pub fn redraw(&mut self) {
         self.frame_index += 1;
         self.params.advance_t();
         let texture_size = Self::data_texture_size(self.screen_size.height, self.params.scale);
-        let uniform_data = self.params.uniforms(
-            self.frame_index,
-            texture_size,
-            self.renderer.timestamp_res(),
-            self.screen_size.into(),
-        );
+        let uniform_data =
+            self.params.uniforms(self.frame_index, texture_size, self.renderer.timestamp_res(), self.screen_size.into());
         self.renderer.update_buffer(self.uniform_id, bytes_of(&uniform_data));
         self.renderer.render();
     }
