@@ -48,6 +48,9 @@ struct frame_info_t {
 
 const workgroup_size = 16u;
 const loop_count = 512u;
+const font_first = 32u;
+const font_width = 8u;
+const font_height = 8u;
 
 fn pcg3d(vin: vec3u) -> vec3u {
   var v = vin * 1664525u + 1013904223u;
@@ -180,20 +183,53 @@ fn sample_dejong(pos: vec2f) -> vec3f {
   return mix(c0, c1, frac.y);
 }
 
+fn overlay_pos() -> vec2f {
+  return vec2f(uni.screen_width - 320.0 - 16.0, 16.0);
+}
+
 fn overlay_alpha(pos: vec2f) -> f32 {
-  let panel_size = vec2f(320.0, 180.0);
-  let panel_pos = vec2f(uni.screen_width - panel_size.x - 16.0, 16.0);
-  let rel = pos - panel_pos;
-  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || any(rel >= panel_size) {
+  let rel = pos - overlay_pos();
+  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || any(rel >= vec2f(320.0, 180.0)) {
     return 0.0;
   }
   return 0.95;
 }
 
+fn glyph_pixel(ch: u32, px: vec2u) -> bool {
+  let row = font[(ch - font_first) * font_height + px.y];
+  return (row & (1u << px.x)) != 0u;
+}
+
+fn text_char(rel: vec2f, origin: vec2f, scale: f32, ch: u32) -> f32 {
+  let local = rel - origin;
+  let glyph_size = vec2f(f32(font_width), f32(font_height)) * scale;
+  if any(local < vec2f(0.0)) || any(local >= glyph_size) {
+    return 0.0;
+  }
+  return select(0.0, 1.0, glyph_pixel(ch, vec2u(local / scale)));
+}
+
+fn overlay_text(pos: vec2f) -> f32 {
+  let rel = pos - overlay_pos() - vec2f(16.0);
+  let scale = 2.0;
+  let glyph_width = f32(font_width) * scale;
+  let glyph_height = f32(font_height) * scale;
+  let text = array<u32, 13>(68u, 69u, 66u, 85u, 71u, 32u, 79u, 86u, 69u, 82u, 76u, 65u, 89u);
+  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || rel.y >= glyph_height {
+    return 0.0;
+  }
+  let ch = u32(rel.x / glyph_width);
+  if ch >= 13u {
+    return 0.0;
+  }
+  return text_char(rel, vec2f(f32(ch) * glyph_width, 0.0), scale, text[ch]);
+}
+
 @fragment
 fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
-  let col = sample_dejong(pos.xy);
-  let alpha = overlay_alpha(pos.xy);
-  return vec4f(mix(col, vec3f(5e-3), alpha), 1.0);
+  var col = sample_dejong(pos.xy);
+  col = mix(col, vec3f(5e-3), overlay_alpha(pos.xy));
+  col = mix(col, vec3f(1.0), overlay_text(pos.xy));
+  return vec4f(col, 1.0);
 }
