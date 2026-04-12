@@ -158,13 +158,14 @@ fn dejong_vs(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4f {
   return vec4f(vec2f(-1.0 + v1, -1.0 + v2), 0.0, 1.0);
 }
 
-fn dejong_color(texel: vec2u) -> vec3f {
-  let texture_size = u32(uni.texture_size);
-  let idx = texel.x + (texture_size - texel.y - 1u) * texture_size;
-  let cnt = vec3f(f32(counts_ro[idx][0]), f32(counts_ro[idx][1]), f32(counts_ro[idx][2]));
-  var col = cnt * uni.texture_size * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
-  col = pow(col, vec3f(uni.gamma));
-  return clamp(col, vec3f(0.0), vec3f(1.0));
+@fragment
+fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
+{
+  var col = sample_dejong(pos.xy);
+  col = mix(col, vec3f(5e-3), overlay_alpha(pos.xy));
+  col = mix(col, vec3f(1.0), overlay_text(pos.xy));
+  col = mix(col, vec3f(1.0), overlay_points(pos.xy));
+  return vec4f(col, 1.0);
 }
 
 fn sample_dejong(pos: vec2f) -> vec3f {
@@ -183,6 +184,15 @@ fn sample_dejong(pos: vec2f) -> vec3f {
   return mix(c0, c1, frac.y);
 }
 
+fn dejong_color(texel: vec2u) -> vec3f {
+  let texture_size = u32(uni.texture_size);
+  let idx = texel.x + (texture_size - texel.y - 1u) * texture_size;
+  let cnt = vec3f(f32(counts_ro[idx][0]), f32(counts_ro[idx][1]), f32(counts_ro[idx][2]));
+  var col = cnt * uni.texture_size * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
+  col = pow(col, vec3f(uni.gamma));
+  return clamp(col, vec3f(0.0), vec3f(1.0));
+}
+
 fn overlay_pos() -> vec2f {
   return vec2f(uni.screen_width - 320.0 - 16.0, 16.0);
 }
@@ -194,6 +204,10 @@ fn overlay_alpha(pos: vec2f) -> f32 {
   }
   return 0.95;
 }
+
+///////////////////
+// TEXT RENDERER //
+///////////////////
 
 fn glyph_pixel(ch: u32, px: vec2u) -> bool {
   let row = font[(ch - font_first) * font_height + px.y];
@@ -225,11 +239,37 @@ fn overlay_text(pos: vec2f) -> f32 {
   return text_char(rel, vec2f(f32(ch) * glyph_width, 0.0), scale, text[ch]);
 }
 
-@fragment
-fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
-{
-  var col = sample_dejong(pos.xy);
-  col = mix(col, vec3f(5e-3), overlay_alpha(pos.xy));
-  col = mix(col, vec3f(1.0), overlay_text(pos.xy));
-  return vec4f(col, 1.0);
+fn overlay_points(pos: vec2f) -> f32 {
+  let rel = pos - overlay_pos() - vec2f(16.0, 40.0);
+  let scale = 2.0;
+  let glyph_width = f32(font_width) * scale;
+  let glyph_height = f32(font_height) * scale;
+  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || rel.y >= glyph_height {
+    return 0.0;
+  }
+  let value = frame_info_ro.total_points / 100000u;
+  var text = array<u32, 7>(
+    48u + (value / 10000u) % 10u,
+    48u + (value / 1000u) % 10u,
+    48u + (value / 100u) % 10u,
+    48u + (value / 10u) % 10u,
+    46u,
+    48u + value % 10u,
+    77u,
+  );
+  if text[0] == 48u {
+    text[0] = 32u;
+  }
+  if text[0] == 32u && text[1] == 48u {
+    text[1] = 32u;
+  }
+  if text[1] == 32u && text[2] == 48u {
+    text[2] = 32u;
+  }
+  let ch = u32(rel.x / glyph_width);
+  if ch >= 7u {
+    return 0.0;
+  }
+  return text_char(rel, vec2f(f32(ch) * glyph_width, 0.0), scale, text[ch]);
 }
+
