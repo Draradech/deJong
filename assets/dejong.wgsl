@@ -153,13 +153,33 @@ fn dejong_vs(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4f {
   return vec4f(vec2f(-1.0 + v1, -1.0 + v2), 0.0, 1.0);
 }
 
+fn dejong_color(texel: vec2u) -> vec3f {
+  let texture_size = u32(uni.texture_size);
+  let idx = texel.x + (texture_size - texel.y - 1u) * texture_size;
+  let cnt = vec3f(f32(counts_ro[idx][0]), f32(counts_ro[idx][1]), f32(counts_ro[idx][2]));
+  let col = cnt * uni.texture_size * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
+  return pow(col, vec3f(uni.gamma));
+}
+
+fn sample_dejong(pos: vec2f) -> vec3f {
+  let display_size = uni.screen_height;
+  var px = pos - vec2f((uni.screen_width - display_size) * 0.5, 0.0);
+  let sample = px * uni.texture_size / display_size - 0.5;
+  let base = vec2i(floor(sample));
+  let frac = fract(sample);
+  let max_texel = vec2i(i32(uni.texture_size) - 1);
+  let p00 = vec2u(clamp(base, vec2i(0), max_texel));
+  let p10 = vec2u(clamp(base + vec2i(1, 0), vec2i(0), max_texel));
+  let p01 = vec2u(clamp(base + vec2i(0, 1), vec2i(0), max_texel));
+  let p11 = vec2u(clamp(base + vec2i(1, 1), vec2i(0), max_texel));
+  let c0 = mix(dejong_color(p00), dejong_color(p10), frac.x);
+  let c1 = mix(dejong_color(p01), dejong_color(p11), frac.x);
+  return mix(c0, c1, frac.y);
+}
+
 @fragment
 fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
-  var px = vec2i(pos.xy) - vec2i(i32((uni.screen_width - uni.texture_size) / 2.0), 0);
-  px = clamp(px, vec2i(0), vec2i(i32(uni.texture_size)));
-  let idx = (u32(px.x) + (u32(uni.texture_size) - u32(px.y) - 1) * u32(uni.texture_size));
-  let cnt = vec3f(f32(counts_ro[idx][0]), f32(counts_ro[idx][1]), f32(counts_ro[idx][2]));
-  let col = cnt * uni.texture_size  * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
-  return vec4f(pow(col, vec3f(uni.gamma)), 1);
+  let col = sample_dejong(pos.xy);
+  return vec4f(col, 1);
 }
