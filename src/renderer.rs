@@ -10,12 +10,6 @@ pub struct ShaderId(usize);
 pub struct BufferId(usize);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct TextureId(usize);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SamplerId(usize);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct QueryId(usize);
 
 pub type BufferBinding = (u32, BufferId);
@@ -47,8 +41,6 @@ pub struct Renderer {
     config: wgpu::SurfaceConfiguration,
     shaders: Vec<wgpu::ShaderModule>,
     buffers: Vec<wgpu::Buffer>,
-    textures: Vec<wgpu::Texture>,
-    samplers: Vec<wgpu::Sampler>,
     queries: Vec<wgpu::QuerySet>,
     passes: Vec<Pass>,
 }
@@ -95,8 +87,6 @@ impl Renderer {
             config,
             shaders: Vec::new(),
             buffers: Vec::new(),
-            textures: Vec::new(),
-            samplers: Vec::new(),
             queries: Vec::new(),
             passes: Vec::new(),
         }
@@ -108,7 +98,7 @@ impl Renderer {
         self.surface.configure(&self.device, &self.config);
     }
 
-    pub fn timestamp_res(&mut self) -> f32 {
+    pub fn timestamp_res(&self) -> f32 {
         self.queue.get_timestamp_period()
     }
 
@@ -137,6 +127,10 @@ impl Renderer {
         });
         self.buffers.push(buffer);
         id
+    }
+
+    pub fn update_buffer(&self, id: BufferId, data: &[u8]) {
+        self.queue.write_buffer(&self.buffers[id.0], 0, data);
     }
 
     pub fn replace_buffer(&mut self, id: BufferId, size: u64, usage: wgpu::BufferUsages) {
