@@ -40,7 +40,10 @@ struct RenderPass {
     vertices: u32,
     query: Option<QueryId>,
 }
-struct ResolvePass {}
+struct ResolvePass {
+    query: QueryId,
+    buffer: BufferId,
+}
 
 pub struct Renderer {
     surface: wgpu::Surface<'static>,
@@ -112,12 +115,11 @@ impl Renderer {
 
     pub fn create_shader(&mut self, path: impl AsRef<Path>) -> ShaderId {
         let id = ShaderId(self.shaders.len());
-        let label = format!("shader_{}", id.0);
         let path = path.as_ref();
         let source =
             fs::read_to_string(path).unwrap_or_else(|err| panic!("failed to read shader {}: {}", path.display(), err));
         let shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(&label),
+            label: None,
             source: wgpu::ShaderSource::Wgsl(source.into()),
         });
         self.shaders.push(shader);
@@ -126,13 +128,8 @@ impl Renderer {
 
     pub fn create_buffer(&mut self, size: u64, usage: wgpu::BufferUsages) -> BufferId {
         let id = BufferId(self.buffers.len());
-        let label = format!("buffer_{}", id.0);
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some(&label),
-            size,
-            usage,
-            mapped_at_creation: false,
-        });
+        let buffer =
+            self.device.create_buffer(&wgpu::BufferDescriptor { label: None, size, usage, mapped_at_creation: false });
         self.buffers.push(buffer);
         id
     }
@@ -142,13 +139,8 @@ impl Renderer {
     }
 
     pub fn replace_buffer(&mut self, id: BufferId, size: u64, usage: wgpu::BufferUsages) {
-        let label = format!("buffer_{}", id.0);
-        self.buffers[id.0] = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some(&label),
-            size,
-            usage,
-            mapped_at_creation: false,
-        });
+        self.buffers[id.0] =
+            self.device.create_buffer(&wgpu::BufferDescriptor { label: None, size, usage, mapped_at_creation: false });
         for pass in &mut self.passes {
             match pass {
                 Pass::Compute(pass) if pass.bindings.iter().any(|(_, buffer)| *buffer == id) => {
@@ -172,13 +164,12 @@ impl Renderer {
         }
     }
 
-    pub fn create_tsquery(&mut self, count: u32) -> QueryId {
+    pub fn create_tsquery(&mut self) -> QueryId {
         let id = QueryId(self.queries.len());
-        let label = format!("query_{}", id.0);
         let query = self.device.create_query_set(&wgpu::QuerySetDescriptor {
-            label: Some(&label),
+            label: None,
             ty: wgpu::QueryType::Timestamp,
-            count,
+            count: 2,
         });
         self.queries.push(query);
         id
@@ -186,6 +177,10 @@ impl Renderer {
 
     pub fn add_clear_pass(&mut self, buffer: BufferId) {
         self.passes.push(Pass::Clear(ClearPass { buffer }));
+    }
+
+    pub fn add_resolve_query(&mut self, query: QueryId, buffer: BufferId) {
+        self.passes.push(Pass::Resolve(ResolvePass { query, buffer }));
     }
 
     pub fn add_compute_pass(
@@ -306,6 +301,10 @@ impl Renderer {
         encoder.clear_buffer(&self.buffers[pass.buffer.0], 0, None);
     }
 
+    fn encode_resolve_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: &ResolvePass) {
+        encoder.resolve_query_set(&self.queries[pass.query.0], 0..2, &self.buffers[pass.buffer.0], 0);
+    }
+
     pub fn render(&mut self) {
         let surface_texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -324,7 +323,7 @@ impl Renderer {
             match pass {
                 Pass::Clear(pass) => self.encode_clear_pass(&mut encoder, pass),
                 Pass::Copy(_) => {}
-                Pass::Resolve(_) => {}
+                Pass::Resolve(pass) => self.encode_resolve_pass(&mut encoder, pass),
                 Pass::Compute(pass) => self.encode_compute_pass(&mut encoder, pass),
                 Pass::Render(pass) => self.encode_render_pass(&mut encoder, &surface_texture, pass),
             }
