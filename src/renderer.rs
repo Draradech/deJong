@@ -17,7 +17,6 @@ pub type BufferBinding = (u32, BufferId);
 enum Pass {
     Clear(ClearPass),
     Compute(ComputePass),
-    Copy(CopyPass),
     Render(RenderPass),
     Resolve(ResolvePass),
 }
@@ -25,14 +24,16 @@ enum Pass {
 struct ClearPass {
     buffer: BufferId,
 }
+
 struct ComputePass {
     pipeline: wgpu::ComputePipeline,
     bindings: Vec<BufferBinding>,
     bind_group: wgpu::BindGroup,
-    invocations: u32,
+    invocations: Option<u32>,
+    indirect: Option<BufferId>,
     query: Option<QueryId>,
 }
-struct CopyPass {}
+
 struct RenderPass {
     pipeline: wgpu::RenderPipeline,
     bindings: Vec<BufferBinding>,
@@ -40,6 +41,7 @@ struct RenderPass {
     vertices: u32,
     query: Option<QueryId>,
 }
+
 struct ResolvePass {
     query: QueryId,
     buffer: BufferId,
@@ -191,20 +193,34 @@ impl Renderer {
         bindings: &[BufferBinding],
         query: Option<QueryId>,
     ) {
-        let pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: None,
-            layout: None,
-            module: &self.shaders[shader.0],
-            entry_point: Some(entry),
-            compilation_options: Default::default(),
-            cache: None,
-        });
+        let pipeline = self.create_compute_pipeline(shader, entry);
         let bind_group = create_bind_group(&self.device, &self.buffers, &pipeline.get_bind_group_layout(0), bindings);
         self.passes.push(Pass::Compute(ComputePass {
             pipeline,
             bindings: bindings.to_vec(),
             bind_group,
-            invocations,
+            invocations: Some(invocations),
+            indirect: None,
+            query,
+        }));
+    }
+
+    pub fn add_compute_pass_indirect(
+        &mut self,
+        shader: ShaderId,
+        entry: &'static str,
+        indirect: BufferId,
+        bindings: &[BufferBinding],
+        query: Option<QueryId>,
+    ) {
+        let pipeline = self.create_compute_pipeline(shader, entry);
+        let bind_group = create_bind_group(&self.device, &self.buffers, &pipeline.get_bind_group_layout(0), bindings);
+        self.passes.push(Pass::Compute(ComputePass {
+            pipeline,
+            bindings: bindings.to_vec(),
+            bind_group,
+            invocations: None,
+            indirect: Some(indirect),
             query,
         }));
     }
@@ -294,7 +310,22 @@ impl Renderer {
             encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes });
         compute_pass.set_pipeline(&pass.pipeline);
         compute_pass.set_bind_group(0, &pass.bind_group, &[]);
-        compute_pass.dispatch_workgroups(pass.invocations, 1, 1);
+        if let Some(invocations) = pass.invocations {
+            compute_pass.dispatch_workgroups(invocations, 1, 1);
+        } else if let Some(indirect) = pass.indirect {
+            compute_pass.dispatch_workgroups_indirect(&self.buffers[indirect.0], 0);
+        }
+    }
+
+    fn create_compute_pipeline(&self, shader: ShaderId, entry: &'static str) -> wgpu::ComputePipeline {
+        self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: None,
+            module: &self.shaders[shader.0],
+            entry_point: Some(entry),
+            compilation_options: Default::default(),
+            cache: None,
+        })
     }
 
     fn encode_clear_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: &ClearPass) {
@@ -322,7 +353,6 @@ impl Renderer {
         for pass in &self.passes {
             match pass {
                 Pass::Clear(pass) => self.encode_clear_pass(&mut encoder, pass),
-                Pass::Copy(_) => {}
                 Pass::Resolve(pass) => self.encode_resolve_pass(&mut encoder, pass),
                 Pass::Compute(pass) => self.encode_compute_pass(&mut encoder, pass),
                 Pass::Render(pass) => self.encode_render_pass(&mut encoder, &surface_texture, pass),
