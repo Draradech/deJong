@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use clap::Parser;
 use rand::RngExt;
 
 const MIN_SPEED_PERCENT: f32 = 1.0;
@@ -21,9 +22,9 @@ pub struct UniformData {
     pub brightness: f32,
     pub gamma: f32,
     pub budget: f32,
-    pub timestamp_period_ns: f32,
-    pub viewport_width: f32,
-    pub viewport_height: f32,
+    pub timestamp_res: f32,
+    pub screen_width: f32,
+    pub screen_height: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +53,10 @@ impl Default for Params {
 }
 
 impl Params {
+    pub fn from_cli() -> Self {
+        Cli::parse().into_params()
+    }
+
     pub fn toggle_pause(&mut self) {
         self.paused = !self.paused;
     }
@@ -79,8 +84,8 @@ impl Params {
         &self,
         frame_index: u32,
         texture_size: u32,
-        timestamp_period_ns: f32,
-        viewport_size: (u32, u32),
+        timestamp_res: f32,
+        screen_size: (u32, u32),
     ) -> UniformData {
         let t = self.t;
         UniformData {
@@ -92,9 +97,9 @@ impl Params {
             texture_size: texture_size as f32,
             brightness: self.brightness * 4e-6,
             budget: self.budget,
-            timestamp_period_ns,
-            viewport_width: viewport_size.0 as f32,
-            viewport_height: viewport_size.1 as f32,
+            timestamp_res,
+            screen_width: screen_size.0 as f32,
+            screen_height: screen_size.1 as f32,
             gamma: self.gamma,
         }
     }
@@ -104,5 +109,50 @@ impl Params {
             "scale={:.0}% speed={:.1}% bright={:.0}% gamma={:.2} budget={:.2}ms paused={}",
             self.scale, self.speed, self.brightness, self.gamma, self.budget, self.paused
         )
+    }
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "dejong_rust")]
+struct Cli {
+    #[arg(long)]
+    t: Option<f64>,
+    #[arg(long)]
+    scale: Option<f32>,
+    #[arg(long)]
+    speed: Option<f32>,
+    #[arg(long)]
+    brightness: Option<f32>,
+    #[arg(long)]
+    budget: Option<f32>,
+    #[arg(long)]
+    gamma: Option<f32>,
+}
+
+impl Cli {
+    fn into_params(self) -> Params {
+        let mut params = Params::default();
+
+        if let Some(t) = self.t {
+            params.t = t;
+            params.paused = true;
+        }
+        if let Some(scale) = self.scale {
+            params.scale = scale;
+        }
+        if let Some(speed) = self.speed {
+            params.speed = speed;
+        }
+        if let Some(brightness) = self.brightness {
+            params.brightness = brightness;
+        }
+        if let Some(budget) = self.budget {
+            params.budget = budget;
+        }
+        if let Some(gamma) = self.gamma {
+            params.gamma = gamma;
+        }
+
+        params
     }
 }

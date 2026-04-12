@@ -63,7 +63,7 @@ impl Dejong {
     pub fn toggle_debug_overlay(&mut self) {}
 
     pub fn redraw(&mut self) {
-        //let uniform_data = self.params.uniforms(frame_index, texture_size, timestamp_period_ns, viewport_size);
+        //let uniform_data = self.params.uniforms(frame_index, texture_size, timestamp_res, screen_size);
         //self.renderer.update_buffer("uniform", uniform_data);
         self.renderer.render();
     }
