@@ -24,6 +24,7 @@ impl Dejong {
     fn data_texture_size(screen_height: u32, scale: f32) -> u32 {
         (screen_height as f32 * scale * 0.01) as u32
     }
+
     fn data_buffer_size(screen_height: u32, scale: f32) -> u64 {
         let texture_size = Self::data_texture_size(screen_height, scale);
         texture_size as u64 * 3 * U32_SIZE
@@ -72,6 +73,7 @@ impl Dejong {
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
+        self.renderer.resize(size);
         self.screen_size = size;
         let data_size = Self::data_buffer_size(self.screen_size.height, self.params.scale);
         self.renderer.replace_buffer(self.data_buffer_id, data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
@@ -82,7 +84,12 @@ impl Dejong {
     pub fn redraw(&mut self) {
         self.frame_index += 1;
         let texture_size = Self::data_texture_size(self.screen_size.height, self.params.scale);
-        let uniform_data = self.params.uniforms(self.frame_index, texture_size, self.renderer.timestamp_res(), self.screen_size.into());
+        let _uniform_data = self.params.uniforms(
+            self.frame_index,
+            texture_size,
+            self.renderer.timestamp_res(),
+            self.screen_size.into(),
+        );
         //self.renderer.update_buffer("uniform", uniform_data);
         self.renderer.render();
     }

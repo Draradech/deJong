@@ -1,5 +1,6 @@
 use std::{fs, path::Path, sync::Arc};
 
+use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -30,7 +31,13 @@ enum Pass {
 struct ClearPass {}
 struct ComputePass {}
 struct CopyPass {}
-struct RenderPass {}
+struct RenderPass {
+    pipeline: wgpu::RenderPipeline,
+    bindings: Vec<BufferBinding>,
+    bind_group: wgpu::BindGroup,
+    vertices: u32,
+    query: Option<QueryId>,
+}
 struct ResolvePass {}
 
 pub struct Renderer {
@@ -44,6 +51,22 @@ pub struct Renderer {
     samplers: Vec<wgpu::Sampler>,
     queries: Vec<wgpu::QuerySet>,
     passes: Vec<Pass>,
+}
+
+fn create_bind_group(
+    device: &wgpu::Device,
+    buffers: &[wgpu::Buffer],
+    layout: &wgpu::BindGroupLayout,
+    bindings: &[BufferBinding],
+) -> wgpu::BindGroup {
+    let entries = bindings
+        .iter()
+        .map(|(binding, buffer)| wgpu::BindGroupEntry {
+            binding: *binding,
+            resource: buffers[buffer.0].as_entire_binding(),
+        })
+        .collect::<Vec<_>>();
+    device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout, entries: &entries })
 }
 
 impl Renderer {
@@ -77,6 +100,12 @@ impl Renderer {
             queries: Vec::new(),
             passes: Vec::new(),
         }
+    }
+
+    pub fn resize(&mut self, size: PhysicalSize<u32>) {
+        self.config.width = size.width.max(1);
+        self.config.height = size.height.max(1);
+        self.surface.configure(&self.device, &self.config);
     }
 
     pub fn timestamp_res(&mut self) -> f32 {
@@ -118,6 +147,18 @@ impl Renderer {
             usage,
             mapped_at_creation: false,
         });
+        for pass in &mut self.passes {
+            if let Pass::Render(pass) = pass
+                && pass.bindings.iter().any(|(_, buffer)| *buffer == id)
+            {
+                pass.bind_group = create_bind_group(
+                    &self.device,
+                    &self.buffers,
+                    &pass.pipeline.get_bind_group_layout(0),
+                    &pass.bindings,
+                );
+            }
+        }
     }
 
     pub fn create_tsquery(&mut self, count: u32) -> QueryId {
@@ -137,11 +178,11 @@ impl Renderer {
         shader: ShaderId,
         vsentry: &'static str,
         fsentry: &'static str,
-        _vertices: u32,
-        _bindings: &[BufferBinding],
-        _query: Option<QueryId>,
+        vertices: u32,
+        bindings: &[BufferBinding],
+        query: Option<QueryId>,
     ) {
-        let _pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: None,
             vertex: wgpu::VertexState {
@@ -166,20 +207,75 @@ impl Renderer {
             multiview_mask: None,
             cache: None,
         });
+        let bind_group = create_bind_group(&self.device, &self.buffers, &pipeline.get_bind_group_layout(0), bindings);
+        self.passes.push(Pass::Render(RenderPass {
+            pipeline,
+            bindings: bindings.to_vec(),
+            bind_group,
+            vertices,
+            query,
+        }));
+    }
+
+    fn encode_render_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        surface_texture: &wgpu::SurfaceTexture,
+        pass: &RenderPass,
+    ) {
+        let view = surface_texture.texture.create_view(&Default::default());
+        let color_attachments = [Some(wgpu::RenderPassColorAttachment {
+            view: &view,
+            resolve_target: None,
+            depth_slice: None,
+            ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+        })];
+        let timestamp_writes = pass.query.map(|query| wgpu::RenderPassTimestampWrites {
+            query_set: &self.queries[query.0],
+            beginning_of_pass_write_index: Some(0),
+            end_of_pass_write_index: Some(1),
+        });
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &color_attachments,
+            depth_stencil_attachment: None,
+            timestamp_writes,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        render_pass.set_pipeline(&pass.pipeline);
+        render_pass.set_bind_group(0, &pass.bind_group, &[]);
+        render_pass.draw(0..pass.vertices, 0..1);
     }
 
     pub fn render(&mut self) {
-        let encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        let surface_texture = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(frame) | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return,
+            wgpu::CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&self.device, &self.config);
+                return;
+            }
+            wgpu::CurrentSurfaceTexture::Lost => panic!("surface lost"),
+            wgpu::CurrentSurfaceTexture::Validation => panic!("surface validation error"),
+        };
+
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+
         for pass in &self.passes {
             match pass {
                 Pass::Clear(_) => {}
                 Pass::Copy(_) => {}
                 Pass::Resolve(_) => {}
                 Pass::Compute(_) => {}
-                Pass::Render(_) => {}
+                Pass::Render(pass) => self.encode_render_pass(&mut encoder, &surface_texture, pass),
             }
         }
+
         let cmd_buffer = encoder.finish();
+
         self.queue.submit([cmd_buffer]);
+
+        surface_texture.present();
     }
 }
