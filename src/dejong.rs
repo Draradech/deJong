@@ -29,11 +29,16 @@ pub struct Dejong {
 
 impl Dejong {
     fn overlay_text_grid() -> [u32; TEXT_COLS * TEXT_ROWS] {
-        let mut grid = [32u32; TEXT_COLS * TEXT_ROWS];
-        for (i, ch) in "DEBUG OVERLAY".chars().enumerate() {
-            grid[i] = ch as u32;
-        }
-        grid
+        const TEXT: &str = concat!(
+            "Frame  000.00 ms 000.0 fps",
+            "Total  000.00 ms 000.0 M  ",
+            "Pass 1 000.00 ms 000.0 M  ",
+            "Pass 2 000.00 ms 000.0 M  ",
+            "Pass 3 000.00 ms 000.0 M  ",
+            "Render 000.00 ms          ",
+            "Texture  0000 px 000.0 MB ",
+        );
+        std::array::from_fn(|i| TEXT.as_bytes()[i] as u32)
     }
 
     fn data_texture_size(screen_height: u32, scale: f32) -> u32 {

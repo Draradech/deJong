@@ -50,8 +50,7 @@ struct frame_info_t {
 const workgroup_size = 16u;
 const loop_count = 512u;
 const font_first = 32u;
-const font_width = 8u;
-const font_height = 8u;
+const font_size = 8u;
 
 fn pcg3d(vin: vec3u) -> vec3u {
   var v = vin * 1664525u + 1013904223u;
@@ -163,9 +162,10 @@ fn dejong_vs(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4f {
 fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
   var col = sample_dejong(pos.xy);
-  col = mix(col, vec3f(5e-3), overlay_alpha(pos.xy));
-  col = mix(col, vec3f(1.0), overlay_text(pos.xy));
-  col = mix(col, vec3f(1.0), overlay_points(pos.xy));
+  if uni.debug_overlay > 0.5 {
+    col = mix(col, vec3f(5e-3), overlay_alpha(vec2u(pos.xy)));
+    col = mix(col, vec3f(1.0), overlay_text(vec2u(pos.xy)));
+  }
   return vec4f(col, 1.0);
 }
 
@@ -194,82 +194,37 @@ fn dejong_color(texel: vec2u) -> vec3f {
   return clamp(col, vec3f(0.0), vec3f(1.0));
 }
 
-fn overlay_pos() -> vec2f {
-  return vec2f(uni.screen_width - 320.0 - 16.0, 16.0);
+fn overlay_pos() -> vec2u {
+  return vec2u(u32(uni.screen_width) - 432 - 16, 16);
 }
 
-fn overlay_alpha(pos: vec2f) -> f32 {
+fn overlay_alpha(pos: vec2u) -> f32 {
   let rel = pos - overlay_pos();
-  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || any(rel >= vec2f(320.0, 180.0)) {
+  if any(rel < vec2u(0)) || any(rel >= vec2u(432, 176)) {
     return 0.0;
   }
   return 0.95;
 }
 
-///////////////////
-// TEXT RENDERER //
-///////////////////
+fn overlay_text(pos: vec2u) -> f32 {
+  let scale = 2u;
+  let glyph_size = vec2u(font_size) * scale;
+  let stride = glyph_size + vec2u(0, 8);
 
-fn glyph_pixel(ch: u32, px: vec2u) -> bool {
-  let row = font[(ch - font_first) * font_height + px.y];
-  return (row & (1u << px.x)) != 0u;
-}
+  let rel = pos - overlay_pos() - vec2u(8);
+  let cell = rel / stride;
+  if cell.x >= 26u || cell.y >= 7u {
+    return 0.0;
+  }
 
-fn text_char(rel: vec2f, origin: vec2f, scale: f32, ch: u32) -> f32 {
-  let local = rel - origin;
-  let glyph_size = vec2f(f32(font_width), f32(font_height)) * scale;
-  if any(local < vec2f(0.0)) || any(local >= glyph_size) {
+  let local = rel - cell * stride;
+  if any(local >= glyph_size) {
     return 0.0;
   }
-  return select(0.0, 1.0, glyph_pixel(ch, vec2u(local / scale)));
-}
 
-fn overlay_text(pos: vec2f) -> f32 {
-  let rel = pos - overlay_pos() - vec2f(16.0);
-  let scale = 2.0;
-  let glyph_width = f32(font_width) * scale;
-  let glyph_height = f32(font_height) * scale;
-  let text = array<u32, 13>(68u, 69u, 66u, 85u, 71u, 32u, 79u, 86u, 69u, 82u, 76u, 65u, 89u);
-  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || rel.y >= glyph_height {
-    return 0.0;
-  }
-  let ch = u32(rel.x / glyph_width);
-  if ch >= 13u {
-    return 0.0;
-  }
-  return text_char(rel, vec2f(f32(ch) * glyph_width, 0.0), scale, text[ch]);
-}
+  let ch = text[cell.y * 26u + cell.x];
+  let px = local / scale;
+  let row = font[(ch - font_first) * font_size + px.y];
 
-fn overlay_points(pos: vec2f) -> f32 {
-  let rel = pos - overlay_pos() - vec2f(16.0, 40.0);
-  let scale = 2.0;
-  let glyph_width = f32(font_width) * scale;
-  let glyph_height = f32(font_height) * scale;
-  if uni.debug_overlay < 0.5 || any(rel < vec2f(0.0)) || rel.y >= glyph_height {
-    return 0.0;
-  }
-  let value = frame_info_ro.total_points / 100000u;
-  var text = array<u32, 7>(
-    48u + (value / 10000u) % 10u,
-    48u + (value / 1000u) % 10u,
-    48u + (value / 100u) % 10u,
-    48u + (value / 10u) % 10u,
-    46u,
-    48u + value % 10u,
-    77u,
-  );
-  if text[0] == 48u {
-    text[0] = 32u;
-  }
-  if text[0] == 32u && text[1] == 48u {
-    text[1] = 32u;
-  }
-  if text[1] == 32u && text[2] == 48u {
-    text[2] = 32u;
-  }
-  let ch = u32(rel.x / glyph_width);
-  if ch >= 7u {
-    return 0.0;
-  }
-  return text_char(rel, vec2f(f32(ch) * glyph_width, 0.0), scale, text[ch]);
+  return select(0.0, 1.0, (row & (1u << px.x)) != 0u);
 }
