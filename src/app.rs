@@ -11,7 +11,7 @@ use crate::params::Params;
 
 pub enum App {
     Early(EarlyApp),
-    Live(LiveApp),
+    Live(Box<LiveApp>),
 }
 
 pub struct EarlyApp {
@@ -54,7 +54,7 @@ impl ApplicationHandler for App {
         println!("controls: D debug, F fullscreen, Esc quit, Up/Down speed, Left/Right budget, P pause");
         println!("startup: {}", dejong.params.describe());
         window.request_redraw();
-        *self = App::Live(LiveApp { window, dejong, fullscreen: false });
+        *self = App::Live(Box::new(LiveApp { window, dejong, fullscreen: false }));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {

@@ -119,7 +119,7 @@ fn render_timing() {
 }
 
 @compute @workgroup_size(workgroup_size, workgroup_size)
-fn de_jong(@builtin(global_invocation_id) id: vec3u) {
+fn dejong(@builtin(global_invocation_id) id: vec3u) {
   let random = pcg3df(vec3u(id.xy, u32(uni.frame) + frame_info.current_pass));
   var p1 = 2.0 * sin(6.28 * random.xy);
 

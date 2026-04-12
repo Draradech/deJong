@@ -79,11 +79,16 @@ impl Renderer {
         }
     }
 
+    pub fn timestamp_res(&mut self) -> f32 {
+        self.queue.get_timestamp_period()
+    }
+
     pub fn create_shader(&mut self, path: impl AsRef<Path>) -> ShaderId {
         let id = ShaderId(self.shaders.len());
         let label = format!("shader_{}", id.0);
         let path = path.as_ref();
-        let source = fs::read_to_string(path).unwrap_or_else(|err| panic!("failed to read shader {}: {}", path.display(), err));
+        let source =
+            fs::read_to_string(path).unwrap_or_else(|err| panic!("failed to read shader {}: {}", path.display(), err));
         let shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(&label),
             source: wgpu::ShaderSource::Wgsl(source.into()),
