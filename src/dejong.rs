@@ -46,7 +46,7 @@ impl Dejong {
         let indirect = renderer.create_buffer(12 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::INDIRECT);
         let data = renderer.create_buffer(data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
 
-        // renderer.add_clear(data);
+        renderer.add_clear_pass(data);
         // let bind = [(0, uniform), (2, frameinfo), (4, data)];
         // renderer.add_compute_pass(shader, "dejong", 16, &bind, Some(tsquery));
         // renderer.add_resolve_query(tsquery, timestamp);

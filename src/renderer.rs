@@ -22,7 +22,9 @@ enum Pass {
     Resolve(ResolvePass),
 }
 
-struct ClearPass {}
+struct ClearPass {
+    buffer: BufferId,
+}
 struct ComputePass {}
 struct CopyPass {}
 struct RenderPass {
@@ -167,6 +169,10 @@ impl Renderer {
         id
     }
 
+    pub fn add_clear_pass(&mut self, buffer: BufferId) {
+        self.passes.push(Pass::Clear(ClearPass { buffer }));
+    }
+
     pub fn add_render_pass(
         &mut self,
         shader: ShaderId,
@@ -242,6 +248,10 @@ impl Renderer {
         render_pass.draw(0..pass.vertices, 0..1);
     }
 
+    fn encode_clear_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: &ClearPass) {
+        encoder.clear_buffer(&self.buffers[pass.buffer.0], 0, None);
+    }
+
     pub fn render(&mut self) {
         let surface_texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -258,7 +268,7 @@ impl Renderer {
 
         for pass in &self.passes {
             match pass {
-                Pass::Clear(_) => {}
+                Pass::Clear(pass) => self.encode_clear_pass(&mut encoder, pass),
                 Pass::Copy(_) => {}
                 Pass::Resolve(_) => {}
                 Pass::Compute(_) => {}
