@@ -156,8 +156,9 @@ fn dejong_vs(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4f {
 @fragment
 fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
-  let px = vec2u(pos.xy);
-  let idx = (px.x + (u32(uni.texture_size) - px.y - 1) * u32(uni.texture_size));
+  var px = vec2i(pos.xy) - vec2i(i32((uni.screen_width - uni.texture_size) / 2.0), 0);
+  px = clamp(px, vec2i(0), vec2i(i32(uni.texture_size)));
+  let idx = (u32(px.x) + (u32(uni.texture_size) - u32(px.y) - 1) * u32(uni.texture_size));
   let cnt = vec3f(f32(counts_ro[idx][0]), f32(counts_ro[idx][1]), f32(counts_ro[idx][2]));
   let col = cnt * uni.texture_size  * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
   return vec4f(pow(col, vec3f(uni.gamma)), 1);

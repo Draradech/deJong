@@ -25,7 +25,13 @@ enum Pass {
 struct ClearPass {
     buffer: BufferId,
 }
-struct ComputePass {}
+struct ComputePass {
+    pipeline: wgpu::ComputePipeline,
+    bindings: Vec<BufferBinding>,
+    bind_group: wgpu::BindGroup,
+    invocations: u32,
+    query: Option<QueryId>,
+}
 struct CopyPass {}
 struct RenderPass {
     pipeline: wgpu::RenderPipeline,
@@ -144,15 +150,24 @@ impl Renderer {
             mapped_at_creation: false,
         });
         for pass in &mut self.passes {
-            if let Pass::Render(pass) = pass
-                && pass.bindings.iter().any(|(_, buffer)| *buffer == id)
-            {
-                pass.bind_group = create_bind_group(
-                    &self.device,
-                    &self.buffers,
-                    &pass.pipeline.get_bind_group_layout(0),
-                    &pass.bindings,
-                );
+            match pass {
+                Pass::Compute(pass) if pass.bindings.iter().any(|(_, buffer)| *buffer == id) => {
+                    pass.bind_group = create_bind_group(
+                        &self.device,
+                        &self.buffers,
+                        &pass.pipeline.get_bind_group_layout(0),
+                        &pass.bindings,
+                    );
+                }
+                Pass::Render(pass) if pass.bindings.iter().any(|(_, buffer)| *buffer == id) => {
+                    pass.bind_group = create_bind_group(
+                        &self.device,
+                        &self.buffers,
+                        &pass.pipeline.get_bind_group_layout(0),
+                        &pass.bindings,
+                    );
+                }
+                _ => {}
             }
         }
     }
@@ -171,6 +186,32 @@ impl Renderer {
 
     pub fn add_clear_pass(&mut self, buffer: BufferId) {
         self.passes.push(Pass::Clear(ClearPass { buffer }));
+    }
+
+    pub fn add_compute_pass(
+        &mut self,
+        shader: ShaderId,
+        entry: &'static str,
+        invocations: u32,
+        bindings: &[BufferBinding],
+        query: Option<QueryId>,
+    ) {
+        let pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: None,
+            module: &self.shaders[shader.0],
+            entry_point: Some(entry),
+            compilation_options: Default::default(),
+            cache: None,
+        });
+        let bind_group = create_bind_group(&self.device, &self.buffers, &pipeline.get_bind_group_layout(0), bindings);
+        self.passes.push(Pass::Compute(ComputePass {
+            pipeline,
+            bindings: bindings.to_vec(),
+            bind_group,
+            invocations,
+            query,
+        }));
     }
 
     pub fn add_render_pass(
@@ -248,6 +289,19 @@ impl Renderer {
         render_pass.draw(0..pass.vertices, 0..1);
     }
 
+    fn encode_compute_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: &ComputePass) {
+        let timestamp_writes = pass.query.map(|query| wgpu::ComputePassTimestampWrites {
+            query_set: &self.queries[query.0],
+            beginning_of_pass_write_index: Some(0),
+            end_of_pass_write_index: Some(1),
+        });
+        let mut compute_pass =
+            encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None, timestamp_writes });
+        compute_pass.set_pipeline(&pass.pipeline);
+        compute_pass.set_bind_group(0, &pass.bind_group, &[]);
+        compute_pass.dispatch_workgroups(pass.invocations, 1, 1);
+    }
+
     fn encode_clear_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: &ClearPass) {
         encoder.clear_buffer(&self.buffers[pass.buffer.0], 0, None);
     }
@@ -271,7 +325,7 @@ impl Renderer {
                 Pass::Clear(pass) => self.encode_clear_pass(&mut encoder, pass),
                 Pass::Copy(_) => {}
                 Pass::Resolve(_) => {}
-                Pass::Compute(_) => {}
+                Pass::Compute(pass) => self.encode_compute_pass(&mut encoder, pass),
                 Pass::Render(pass) => self.encode_render_pass(&mut encoder, &surface_texture, pass),
             }
         }
