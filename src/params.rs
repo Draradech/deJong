@@ -70,7 +70,7 @@ impl Params {
     }
 
     pub fn advance_t(&mut self) {
-        if self.paused {
+        if !self.paused {
             self.t += 1e-6_f64 * self.speed as f64;
         }
     }

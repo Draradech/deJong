@@ -67,7 +67,10 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => app.dejong.resize(size),
-            WindowEvent::RedrawRequested => app.dejong.redraw(),
+            WindowEvent::RedrawRequested => {
+                app.dejong.redraw();
+                app.window.request_redraw();
+            }
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::Escape) => event_loop.exit(),

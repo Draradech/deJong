@@ -15,41 +15,42 @@ pub struct Dejong {
 
 impl Dejong {
     fn create_data_buffer(size: u32) {
-        // renderer.createBuffer("data", size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        // renderer.create_buffer(size as u64, BufferUsages::STORAGE | BufferUsages::COPY_DST);
     }
 
     pub async fn new(params: Params, window: Arc<Window>) -> Self {
-        let renderer = pollster::block_on(Renderer::new(window));
+        let renderer = Renderer::new(window).await;
 
-        // renderer.create_shader("dejong", "assets/dejong.wgsl");
-        // renderer.create_tsquery("tsquery");
-        // renderer.create_buffer("uniform", Params::UniformData::length(), BufferUsages::UNIFORM | BufferUsages::COPY_DST);
-        // renderer.create_buffer("frameinfo", 13, BufferUsages::STORAGE | BufferUsages::COPY_SCR);
-        // renderer.create_buffer("timestamp", 4,  BufferUsages::STORAGE | BufferUsages::QUERY_RESOLVE);
-        // renderer.create_buffer("indirect", 3, BufferUsages::STORAGE | BufferUsages::INDIRECT);
+        let shader = renderer.create_shader(include_str!("assets/dejong.wgsl"));
+        let tsquery = renderer.create_tsquery(2);
+        let uniform = renderer.create_buffer(Params::UniformData::length(), BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let frameinfo = renderer.create_buffer(13, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let timestamp = renderer.create_buffer(4, BufferUsages::STORAGE | BufferUsages::QUERY_RESOLVE);
+        let indirect = renderer.create_buffer(3, BufferUsages::STORAGE | BufferUsages::INDIRECT);
+        let data = renderer.create_buffer(size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
 
-        // renderer.add_clear("data");
-        // let bind = [("uniform", 0), ("frameinfo", 2), ("data", 4)];
-        // renderer.add_compute_pass("dejong", "deJong", 16, &bind, Some("tsquery"));
-        // renderer.add_resolve_query("tsquery", "timestamp");
-        // let bind = [("uniform", 0), ("timestamp", 1), ("frameinfo", 2), ("indirect", 3)];
-        // renderer.add_compute_pass("dejong", "pass1t", 1, &bind, None);
-        // let bind = [("uniform", 0), ("frameinfo", 2), ("data", 4)];
-        // renderer.add_compute_pass_indirect("dejong", "deJong", "indirect", bind, Some("tsquery"));
-        // renderer.add_resolve_query("tsquery", "timestamp");
-        // let bind = [("uniform", 0), ("timestamp", 1), ("frameinfo", 2), ("indirect", 3)];
-        // renderer.add_compute_pass("dejong", "pass2t", 1, bind, None);
-        // let bind = [("uniform", 0), ("frameinfo", 2), ("data", 4)];
-        // renderer.add_compute_pass_indirect("dejong", "deJong", "indirect", bind, Some("tsquery"));
-        // renderer.add_resolve_query("tsquery", "timestamp");
-        // let bind = [("timestamp", 1), ("frameinfo", 2)];
-        // renderer.add_compute_pass("dejong", "pass3t", 1, bind, None);
-        // let bind = [("uniform", 0), ("frameinfo", 2), ("data", 5)];
-        // renderer.add_render_pass("dejong", "vs", "fs", 3, bind, Some("tsquery"));
-        // renderer.add_resolve_query("tsquery", "timestamp");
-        // let bind = [("timestamp", 1), ("frameinfo", 2)];
-        // renderer.add_compute_pass("dejong", "passrt", 1, bind, None);
-        // renderer.add_buffer_download("frameinfo", 4, readback);
+        // renderer.add_clear(data);
+        // let bind = [(0, uniform), (2, frameinfo), (4, data)];
+        // renderer.add_compute_pass(shader, "deJong", 16, &bind, Some(tsquery));
+        // renderer.add_resolve_query(tsquery, timestamp);
+        // let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (3, indirect)];
+        // renderer.add_compute_pass(shader, "pass1t", 1, &bind, None);
+        // let bind = [(0, uniform), (2, frameinfo), (4, data)];
+        // renderer.add_compute_pass_indirect(shader, "deJong", indirect, &bind, Some(tsquery));
+        // renderer.add_resolve_query(tsquery, timestamp);
+        // let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (3, indirect)];
+        // renderer.add_compute_pass(shader, "pass2t", 1, &bind, None);
+        // let bind = [(0, uniform), (2, frameinfo), (4, data)];
+        // renderer.add_compute_pass_indirect(shader, "deJong", indirect, &bind, Some(tsquery));
+        // renderer.add_resolve_query(tsquery, timestamp);
+        // let bind = [(1, timestamp), (2, frameinfo)];
+        // renderer.add_compute_pass(shader, "pass3t", 1, &bind, None);
+        // let bind = [(0, uniform), (2, frameinfo), (5, data)];
+        // renderer.add_render_pass(shader, "vs", "fs", 3, &bind, Some(tsquery));
+        // renderer.add_resolve_query(tsquery, timestamp);
+        // let bind = [(1, timestamp), (2, frameinfo)];
+        // renderer.add_compute_pass(shader, "passrt", 1, &bind, None);
+        // renderer.add_buffer_download(frameinfo, 4, readback);
 
         Self { renderer, params }
     }

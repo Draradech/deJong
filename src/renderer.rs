@@ -1,10 +1,23 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use winit::window::Window;
 
-type ResourceName = &'static str;
-type Literal = &'static str;
-type Bindings = HashMap<ResourceName, u32>;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ShaderId(usize);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BufferId(usize);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TextureId(usize);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SamplerId(usize);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct QueryId(usize);
+
+pub type BufferBinding = (u32, BufferId);
 
 enum Pass {
     Clear(ClearPass),
@@ -25,10 +38,11 @@ pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    shaders: HashMap<ResourceName, wgpu::ShaderModule>,
-    buffers: HashMap<ResourceName, wgpu::Buffer>,
-    textures: HashMap<ResourceName, wgpu::Texture>,
-    samplers: HashMap<ResourceName, wgpu::Sampler>,
+    shaders: Vec<wgpu::ShaderModule>,
+    buffers: Vec<wgpu::Buffer>,
+    textures: Vec<wgpu::Texture>,
+    samplers: Vec<wgpu::Sampler>,
+    queries: Vec<wgpu::QuerySet>,
     passes: Vec<Pass>,
 }
 
@@ -56,34 +70,81 @@ impl Renderer {
             device,
             queue,
             config,
-            shaders: HashMap::new(),
-            buffers: HashMap::new(),
-            textures: HashMap::new(),
-            samplers: HashMap::new(),
+            shaders: Vec::new(),
+            buffers: Vec::new(),
+            textures: Vec::new(),
+            samplers: Vec::new(),
+            queries: Vec::new(),
             passes: Vec::new(),
         }
     }
 
+    pub fn create_shader(&mut self, source: &str) -> ShaderId {
+        let id = ShaderId(self.shaders.len());
+        let label = format!("shader_{}", id.0);
+        let shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(&label),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        });
+        self.shaders.push(shader);
+        id
+    }
+
+    pub fn create_buffer(&mut self, size: u64, usage: wgpu::BufferUsages) -> BufferId {
+        let id = BufferId(self.buffers.len());
+        let label = format!("buffer_{}", id.0);
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(&label),
+            size,
+            usage,
+            mapped_at_creation: false,
+        });
+        self.buffers.push(buffer);
+        id
+    }
+
+    pub fn replace_buffer(&mut self, id: BufferId, size: u64, usage: wgpu::BufferUsages) {
+        let label = format!("buffer_{}", id.0);
+        self.buffers[id.0] = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(&label),
+            size,
+            usage,
+            mapped_at_creation: false,
+        });
+    }
+
+    pub fn create_tsquery(&mut self, count: u32) -> QueryId {
+        let id = QueryId(self.queries.len());
+        let label = format!("query_{}", id.0);
+        let query = self.device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: Some(&label),
+            ty: wgpu::QueryType::Timestamp,
+            count,
+        });
+        self.queries.push(query);
+        id
+    }
+
     pub fn add_render_pass(
         &mut self,
-        shader: ResourceName,
-        vsentry: Literal,
-        fsentry: Literal,
-        vertices: u32,
-        bindings: Bindings,
-        query: Option<ResourceName>,
+        shader: ShaderId,
+        vsentry: &'static str,
+        fsentry: &'static str,
+        _vertices: u32,
+        _bindings: &[BufferBinding],
+        _query: Option<QueryId>,
     ) {
-        let pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let _pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: None,
             vertex: wgpu::VertexState {
-                module: &self.shaders[shader],
+                module: &self.shaders[shader.0],
                 entry_point: Some(vsentry),
                 compilation_options: Default::default(),
                 buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &self.shaders[shader],
+                module: &self.shaders[shader.0],
                 entry_point: Some(fsentry),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
@@ -104,11 +165,11 @@ impl Renderer {
         let encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         for pass in &self.passes {
             match pass {
-                Pass::Clear(p) => {}
-                Pass::Copy(p) => {}
-                Pass::Resolve(p) => {}
-                Pass::Compute(p) => {}
-                Pass::Render(p) => {}
+                Pass::Clear(_) => {}
+                Pass::Copy(_) => {}
+                Pass::Resolve(_) => {}
+                Pass::Compute(_) => {}
+                Pass::Render(_) => {}
             }
         }
         let cmd_buffer = encoder.finish();
