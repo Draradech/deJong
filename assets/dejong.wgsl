@@ -44,6 +44,7 @@ struct frame_info_t {
 @group(0) @binding(4) var<storage, read_write> counts: array<array<atomic<u32>, 3>>;
 @group(0) @binding(5) var<storage> counts_ro: array<array<u32, 3>>;
 @group(0) @binding(6) var<storage> frame_info_ro: frame_info_t;
+@group(0) @binding(7) var<storage> font: array<u32>;
 
 const workgroup_size = 16u;
 const loop_count = 512u;

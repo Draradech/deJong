@@ -1,17 +1,19 @@
 use std::mem::size_of;
 use std::sync::Arc;
 
-use bytemuck::bytes_of;
+use bytemuck::{bytes_of, cast_slice};
 use wgpu::BufferUsages;
 
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+use crate::font::FONT_ROWS;
 use crate::params::{Params, UniformData};
 use crate::renderer::{BufferId, Renderer};
 
 const U32_SIZE: u64 = size_of::<u32>() as u64;
 const UNIFORM_DATA_SIZE: u64 = size_of::<UniformData>() as u64;
+const FONT_DATA_SIZE: u64 = size_of::<[u32; FONT_ROWS.len()]>() as u64;
 
 pub struct Dejong {
     renderer: Renderer,
@@ -45,6 +47,8 @@ impl Dejong {
         let timestamp = renderer.create_buffer(4 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::QUERY_RESOLVE);
         let indirect = renderer.create_buffer(3 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::INDIRECT);
         let data = renderer.create_buffer(data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let font = renderer.create_buffer(FONT_DATA_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        renderer.update_buffer(font, cast_slice(&FONT_ROWS));
 
         renderer.add_clear_pass(data);
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
@@ -62,7 +66,7 @@ impl Dejong {
         renderer.add_resolve_query(tsquery, timestamp);
         let bind = [(1, timestamp), (2, frameinfo)];
         renderer.add_compute_pass(shader, "pass_3_timing", 1, &bind, None);
-        let bind = [(0, uniform), (5, data), (6, frameinfo)];
+        let bind = [(0, uniform), (5, data), (6, frameinfo), (7, font)];
         renderer.add_render_pass(shader, "dejong_vs", "dejong_fs", 3, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
         let bind = [(1, timestamp), (2, frameinfo)];
@@ -82,8 +86,12 @@ impl Dejong {
         self.frame_index += 1;
         self.params.advance_t();
         let texture_size = Self::data_texture_size(self.screen_size.height, self.params.scale);
-        let uniform_data =
-            self.params.uniforms(self.frame_index, texture_size, self.renderer.timestamp_res(), self.screen_size.into());
+        let uniform_data = self.params.uniforms(
+            self.frame_index,
+            texture_size,
+            self.renderer.timestamp_res(),
+            self.screen_size.into(),
+        );
         self.renderer.update_buffer(self.uniform_id, bytes_of(&uniform_data));
         self.renderer.render();
     }

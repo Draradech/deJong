@@ -1,5 +1,6 @@
 mod app;
 mod dejong;
+mod font;
 mod params;
 mod renderer;
 
