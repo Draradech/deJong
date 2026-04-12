@@ -6,28 +6,29 @@ use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::params::Params;
-use crate::renderer::Renderer;
+use crate::renderer::{BufferId, Renderer};
 
 pub struct Dejong {
     renderer: Renderer,
     pub(crate) params: Params,
+    data_buffer_id: BufferId
 }
 
 impl Dejong {
-    fn create_data_buffer(size: u32) {
-        // renderer.create_buffer(size as u64, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+    fn resize_data_buffer(&mut self, size: u32) {
+        self.renderer.replace_buffer(self.data_buffer_id, size as u64, BufferUsages::STORAGE | BufferUsages::COPY_DST);
     }
 
     pub async fn new(params: Params, window: Arc<Window>) -> Self {
-        let renderer = Renderer::new(window).await;
+        let mut renderer = Renderer::new(window).await;
 
-        let shader = renderer.create_shader(include_str!("assets/dejong.wgsl"));
-        let tsquery = renderer.create_tsquery(2);
-        let uniform = renderer.create_buffer(Params::UniformData::length(), BufferUsages::UNIFORM | BufferUsages::COPY_DST);
+        let shader = renderer.create_shader("assets/dejong.wgsl");
+        let tsquery = renderer.create_tsquery(8);
+        let uniform = renderer.create_buffer(std::mem::size_of::<crate::params::UniformData>() as u64, BufferUsages::UNIFORM | BufferUsages::COPY_DST);
         let frameinfo = renderer.create_buffer(13, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let timestamp = renderer.create_buffer(4, BufferUsages::STORAGE | BufferUsages::QUERY_RESOLVE);
         let indirect = renderer.create_buffer(3, BufferUsages::STORAGE | BufferUsages::INDIRECT);
-        let data = renderer.create_buffer(size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let data = renderer.create_buffer(0, BufferUsages::STORAGE | BufferUsages::COPY_DST);
 
         // renderer.add_clear(data);
         // let bind = [(0, uniform), (2, frameinfo), (4, data)];
@@ -52,7 +53,9 @@ impl Dejong {
         // renderer.add_compute_pass(shader, "passrt", 1, &bind, None);
         // renderer.add_buffer_download(frameinfo, 4, readback);
 
-        Self { renderer, params }
+        let _ = (shader, tsquery, uniform, frameinfo, timestamp, indirect);
+
+        Self { renderer, params, data_buffer_id: data }
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {}
