@@ -14,6 +14,9 @@ use crate::renderer::{BufferId, Renderer};
 const U32_SIZE: u64 = size_of::<u32>() as u64;
 const UNIFORM_DATA_SIZE: u64 = size_of::<UniformData>() as u64;
 const FONT_DATA_SIZE: u64 = size_of::<[u32; FONT_ROWS.len()]>() as u64;
+const TEXT_COLS: usize = 26;
+const TEXT_ROWS: usize = 7;
+const TEXT_GRID_SIZE: u64 = size_of::<[u32; TEXT_COLS * TEXT_ROWS]>() as u64;
 
 pub struct Dejong {
     renderer: Renderer,
@@ -25,6 +28,14 @@ pub struct Dejong {
 }
 
 impl Dejong {
+    fn overlay_text_grid() -> [u32; TEXT_COLS * TEXT_ROWS] {
+        let mut grid = [32u32; TEXT_COLS * TEXT_ROWS];
+        for (i, ch) in "DEBUG OVERLAY".chars().enumerate() {
+            grid[i] = ch as u32;
+        }
+        grid
+    }
+
     fn data_texture_size(screen_height: u32, scale: f32) -> u32 {
         (screen_height as f32 * scale * 0.01) as u32
     }
@@ -48,7 +59,9 @@ impl Dejong {
         let indirect = renderer.create_buffer(3 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::INDIRECT);
         let data = renderer.create_buffer(data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let font = renderer.create_buffer(FONT_DATA_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let text = renderer.create_buffer(TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         renderer.update_buffer(font, cast_slice(&FONT_ROWS));
+        renderer.update_buffer(text, cast_slice(&Self::overlay_text_grid()));
 
         renderer.add_clear_pass(data);
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
@@ -66,7 +79,7 @@ impl Dejong {
         renderer.add_resolve_query(tsquery, timestamp);
         let bind = [(1, timestamp), (2, frameinfo)];
         renderer.add_compute_pass(shader, "pass_3_timing", 1, &bind, None);
-        let bind = [(0, uniform), (5, data), (6, frameinfo), (7, font)];
+        let bind = [(0, uniform), (5, data), (6, frameinfo), (7, font), (8, text)];
         renderer.add_render_pass(shader, "dejong_vs", "dejong_fs", 3, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
         let bind = [(1, timestamp), (2, frameinfo)];
