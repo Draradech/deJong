@@ -51,10 +51,6 @@ struct frame_info_t {
 
 const workgroup_size = 16u;
 const loop_count = 100u;
-const font_first = 32u;
-const font_size = 8u;
-const graph_width = 416u;
-const graph_height = 160u;
 
 fn ticks_ms(end: u32, start: u32) -> f32 {
   return f32(end - start) * uni.timestamp_res / 1e6;
@@ -100,9 +96,7 @@ fn pass_1_timing() {
 
 @compute @workgroup_size(graph_height)
 fn pass_2_timing(@builtin(global_invocation_id) id: vec3u) {
-  if id.x < graph_height {
-    graph[id.x * graph_width + frame_info.graph_col] = 0u;
-  }
+  graph[id.x * graph_width + frame_info.graph_col] = 0u;
   if id.x != 0u {
     return;
   }
@@ -180,7 +174,7 @@ fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
   var col = sample_dejong(pos.xy);
   if uni.debug_overlay > 0.5 {
-    col = mix(col, vec3f(5e-3), overlay_alpha(vec2u(pos.xy)));
+    col = mix(col, vec3f(0.01), overlay_alpha(vec2u(pos.xy)));
     let graph_col = overlay_graph(vec2u(pos.xy));
     col = mix(col, graph_col.rgb, graph_col.a);
     col = mix(col, vec3f(1.0), overlay_text(vec2u(pos.xy)));
@@ -213,26 +207,37 @@ fn dejong_color(texel: vec2u) -> vec3f {
   return clamp(col, vec3f(0.0), vec3f(1.0));
 }
 
+const font_first = 32u;
+const font_size = 8u;
+const graph_width = 416u;
+const graph_height = 160u;
+const overlay_margin = vec2u(16);
+const overlay_padding = vec2u(8);
+const text_cols = 26u;
+const text_rows = 7u;
+const text_scale = 2u;
+const glyph_size = vec2u(font_size) * text_scale;
+const stride = glyph_size + vec2u(0, glyph_size.y / 2);
+const graph_offset = vec2u(0, stride.y * text_rows + overlay_padding.y) + overlay_padding;
+const overlay_size = vec2u(stride.x * text_cols, stride.y * text_rows + overlay_padding.y + graph_height) + overlay_padding * 2;
+
 fn overlay_pos() -> vec2u {
-  return vec2u(u32(uni.screen_width) - 432 - 16, 16);
+  return vec2u(u32(uni.screen_width) - overlay_size.x - overlay_margin.x, overlay_margin.y);
 }
 
 fn overlay_alpha(pos: vec2u) -> f32 {
   let rel = pos - overlay_pos();
-  if any(rel < vec2u(0)) || any(rel >= vec2u(432, 352)) {
+  if any(rel < vec2u(0)) || any(rel >= overlay_size) {
     return 0.0;
   }
   return 0.95;
 }
 
 fn overlay_text(pos: vec2u) -> f32 {
-  let scale = 2u;
-  let glyph_size = vec2u(font_size) * scale;
-  let stride = glyph_size + vec2u(0, 8);
 
-  let rel = pos - overlay_pos() - vec2u(8);
+  let rel = pos - overlay_pos() - overlay_padding;
   let cell = rel / stride;
-  if cell.x >= 26u || cell.y >= 7u {
+  if cell.x >= text_cols || cell.y >= text_rows {
     return 0.0;
   }
 
@@ -241,15 +246,15 @@ fn overlay_text(pos: vec2u) -> f32 {
     return 0.0;
   }
 
-  let ch = text[cell.y * 26u + cell.x];
-  let px = local / scale;
+  let ch = text[cell.y * text_cols + cell.x];
+  let px = local / text_scale;
   let row = font[(ch - font_first) * font_size + px.y];
 
   return select(0.0, 1.0, (row & (1u << px.x)) != 0u);
 }
 
 fn overlay_graph(pos: vec2u) -> vec4f {
-  let rel = pos - overlay_pos() - vec2u(8, 182);
+  let rel = pos - overlay_pos() - graph_offset;
   if rel.x >= graph_width || rel.y >= graph_height {
     return vec4f(0.0);
   }
@@ -274,7 +279,7 @@ fn overlay_graph(pos: vec2u) -> vec4f {
       return vec4f(0.0, 1.0, 1.0, 1.0);
     }
     default: {
-      return vec4f(0.0);
+      return vec4f(vec3f(0.0), 0.5);
     }
   }
 }
