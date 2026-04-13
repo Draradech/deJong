@@ -59,7 +59,7 @@ impl Dejong {
         let shader = renderer.create_shader("assets/dejong.wgsl");
         let tsquery = renderer.create_tsquery();
         let uniform = renderer.create_buffer(UNIFORM_DATA_SIZE, BufferUsages::UNIFORM | BufferUsages::COPY_DST);
-        let frameinfo = renderer.create_buffer(13 * U32_SIZE, BufferUsages::STORAGE);
+        let frameinfo = renderer.create_buffer(14 * U32_SIZE, BufferUsages::STORAGE);
         let timestamp = renderer.create_buffer(4 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::QUERY_RESOLVE);
         let indirect = renderer.create_buffer(3 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::INDIRECT);
         let data = renderer.create_buffer(data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
@@ -82,9 +82,9 @@ impl Dejong {
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
         renderer.add_compute_pass_indirect(shader, "dejong", indirect, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
-        let bind = [(1, timestamp), (2, frameinfo)];
+        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (8, text)];
         renderer.add_compute_pass(shader, "pass_3_timing", 1, &bind, None);
-        let bind = [(0, uniform), (5, data), (6, frameinfo), (7, font), (8, text)];
+        let bind = [(0, uniform), (2, frameinfo), (5, data), (7, font), (8, text)];
         renderer.add_render_pass(shader, "dejong_vs", "dejong_fs", 3, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
         let bind = [(1, timestamp), (2, frameinfo)];

@@ -35,6 +35,7 @@ struct frame_info_t {
   pass_3_points: u32,
   total_points: u32,
   current_pass: u32,
+  prev_pass_1_start: u32,
 };
 
 @group(0) @binding(0) var<uniform> uni: uniform_t;
@@ -43,14 +44,17 @@ struct frame_info_t {
 @group(0) @binding(3) var<storage, read_write> dispatch: vec3u;
 @group(0) @binding(4) var<storage, read_write> counts: array<array<atomic<u32>, 3>>;
 @group(0) @binding(5) var<storage> counts_ro: array<array<u32, 3>>;
-@group(0) @binding(6) var<storage> frame_info_ro: frame_info_t;
 @group(0) @binding(7) var<storage> font: array<u32>;
-@group(0) @binding(8) var<storage> text: array<u32>;
+@group(0) @binding(8) var<storage, read_write> text: array<u32>;
 
 const workgroup_size = 16u;
 const loop_count = 512u;
 const font_first = 32u;
 const font_size = 8u;
+
+fn ticks_ms(end: u32, start: u32) -> f32 {
+  return f32(end - start) * uni.timestamp_res / 1e6;
+}
 
 fn pcg3d(vin: vec3u) -> vec3u {
   var v = vin * 1664525u + 1013904223u;
@@ -70,10 +74,11 @@ fn pcg3df(vin: vec3u) -> vec3f {
 
 @compute @workgroup_size(1)
 fn pass_1_timing() {
+  frame_info.prev_pass_1_start = frame_info.pass_1_start;
   frame_info.pass_1_points = 16u * workgroup_size * workgroup_size * loop_count;
   frame_info.pass_1_start = timestamp.start;
   frame_info.pass_1_end = timestamp.end;
-  var pass_1_ms = f32(i32(frame_info.pass_1_end) - i32(frame_info.pass_1_start)) * uni.timestamp_res / 1000000.0;
+  var pass_1_ms = ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start);
   pass_1_ms = max(pass_1_ms, 0.01);
   let pass_1_ratio = pass_1_ms / uni.budget;
   let pass_2_ratio = 0.5 - pass_1_ratio;
@@ -93,7 +98,7 @@ fn pass_1_timing() {
 fn pass_2_timing() {
   frame_info.pass_2_start = timestamp.start;
   frame_info.pass_2_end = timestamp.end;
-  var pass_12_ms = f32(i32(frame_info.pass_2_end) - i32(frame_info.pass_1_start)) * uni.timestamp_res / 1000000.0;
+  var pass_12_ms = ticks_ms(frame_info.pass_2_end, frame_info.pass_1_start);
   pass_12_ms = max(pass_12_ms, 0.01);
   let pass_12_ratio = pass_12_ms / uni.budget;
   let pass_3_ratio = 1.0 - pass_12_ratio;
@@ -114,6 +119,7 @@ fn pass_2_timing() {
 fn pass_3_timing() {
   frame_info.pass_3_start = timestamp.start;
   frame_info.pass_3_end = timestamp.end;
+  update_overlay_values();
 }
 
 @compute @workgroup_size(1)
@@ -189,7 +195,7 @@ fn dejong_color(texel: vec2u) -> vec3f {
   let texture_size = u32(uni.texture_size);
   let idx = texel.x + (texture_size - texel.y - 1u) * texture_size;
   let cnt = vec3f(f32(counts_ro[idx][0]), f32(counts_ro[idx][1]), f32(counts_ro[idx][2]));
-  var col = cnt * uni.texture_size * uni.texture_size * uni.brightness / f32(frame_info_ro.total_points);
+  var col = cnt * uni.texture_size * uni.texture_size * uni.brightness / f32(frame_info.total_points);
   col = pow(col, vec3f(uni.gamma));
   return clamp(col, vec3f(0.0), vec3f(1.0));
 }
@@ -227,4 +233,100 @@ fn overlay_text(pos: vec2u) -> f32 {
   let row = font[(ch - font_first) * font_size + px.y];
 
   return select(0.0, 1.0, (row & (1u << px.x)) != 0u);
+}
+
+fn pow10(n: u32) -> u32 {
+  var x = 1u;
+  for (var i = 0u; i < n; i++) {
+    x *= 10u;
+  }
+  return x;
+}
+
+fn write_uint(offset: u32, value: u32, digits: u32) {
+  var v = value;
+  for (var i = 0u; i < digits; i++) {
+    text[offset + digits - i - 1u] = 48u + v % 10u;
+    v /= 10u;
+  }
+}
+
+fn write_number(offset: u32, value: f32, digits_base: u32, digits_fract: u32) {
+  let scale = pow10(digits_fract);
+  let scaled = u32(max(value, 0.0) * f32(scale));
+  write_uint(offset, scaled / scale, digits_base);
+  for (var i = 0u; i + 1u < digits_base; i++) {
+    if text[offset + i] != 48u {
+      break;
+    }
+    text[offset + i] = 32u;
+  }
+  if digits_fract > 0u {
+    text[offset + digits_base] = 46u;
+    write_uint(offset + digits_base + 1u, scaled % scale, digits_fract);
+  }
+}
+
+fn update_overlay_values() {
+  for (var i = 0u; i < 13u; i++) {
+    var value = 0.0;
+    var fmt = vec3u(0u);
+
+    switch (i) {
+      case 0u: {
+        value = ticks_ms(frame_info.pass_1_start, frame_info.prev_pass_1_start);
+        fmt = vec3u(3u, 2u, 7u);
+      }
+      case 1u: {
+        value = 1000.0 / max(ticks_ms(frame_info.pass_1_start, frame_info.prev_pass_1_start), 0.01);
+        fmt = vec3u(3u, 1u, 17u);
+      }
+      case 2u: {
+        value = ticks_ms(frame_info.render_end, frame_info.prev_pass_1_start);
+        fmt = vec3u(3u, 2u, 26u + 7u);
+      }
+      case 3u: {
+        value = f32(frame_info.total_points) / 1000000.0;
+        fmt = vec3u(3u, 1u, 26u + 17u);
+      }
+      case 4u: {
+        value = ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start);
+        fmt = vec3u(3u, 2u, 52u + 7u);
+      }
+      case 5u: {
+        value = f32(frame_info.pass_1_points) / 1000000.0;
+        fmt = vec3u(3u, 1u, 52u + 17u);
+      }
+      case 6u: {
+        value = ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start);
+        fmt = vec3u(3u, 2u, 78u + 7u);
+      }
+      case 7u: {
+        value = f32(frame_info.pass_2_points) / 1000000.0;
+        fmt = vec3u(3u, 1u, 78u + 17u);
+      }
+      case 8u: {
+        value = ticks_ms(frame_info.pass_3_end, frame_info.pass_3_start);
+        fmt = vec3u(3u, 2u, 104u + 7u);
+      }
+      case 9u: {
+        value = f32(frame_info.pass_3_points) / 1000000.0;
+        fmt = vec3u(3u, 1u, 104u + 17u);
+      }
+      case 10u: {
+        value = ticks_ms(frame_info.render_end, frame_info.render_start);
+        fmt = vec3u(3u, 2u, 130u + 7u);
+      }
+      case 11u: {
+        value = uni.texture_size;
+        fmt = vec3u(4u, 0u, 156u + 9u);
+      }
+      default: {
+        value = uni.texture_size * uni.texture_size * 12.0 / 1024.0 / 1024.0;
+        fmt = vec3u(3u, 1u, 156u + 17u);
+      }
+    }
+
+    write_number(fmt.z, value, fmt.x, fmt.y);
+  }
 }
