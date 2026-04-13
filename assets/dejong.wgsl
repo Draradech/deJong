@@ -270,6 +270,9 @@ fn overlay_graph(pos: vec2u) -> vec4f {
     case 5u: {
       return vec4f(0.15, 0.0, 0.0, 1.0);
     }
+    case 6u: {
+      return vec4f(0.0, 1.0, 1.0, 1.0);
+    }
     default: {
       return vec4f(0.0);
     }
@@ -373,12 +376,18 @@ fn update_overlay_values() {
 }
 
 fn draw_graph_points() {
+  draw_graph_log_point(6u, f32(frame_info.total_points), 1e5, 1e9);
   draw_graph_point(2u, ticks_ms(frame_info.render_end, frame_info.prev_pass_1_start) / 20.0);
   draw_graph_point(3u, ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start) / 20.0);
   draw_graph_point(4u, ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start) / 20.0);
   draw_graph_point(5u, ticks_ms(frame_info.pass_3_end, frame_info.pass_3_start) / 20.0);
   draw_graph_point(1u, ticks_ms(frame_info.pass_1_start, frame_info.prev_pass_1_start) / 20.0);
   frame_info.graph_col = (frame_info.graph_col + 1u) % graph_width;
+}
+
+fn draw_graph_log_point(graph_id: u32, value: f32, minv: f32, maxv: f32) {
+  let logv = (log2(clamp(value, minv, maxv)) - log2(minv)) / (log2(maxv) - log2(minv));
+  draw_graph_point(graph_id, logv);
 }
   
 fn draw_graph_point(graph_id: u32, yf: f32) {
