@@ -17,6 +17,9 @@ const FONT_DATA_SIZE: u64 = size_of::<[u32; FONT_ROWS.len()]>() as u64;
 const TEXT_COLS: usize = 26;
 const TEXT_ROWS: usize = 7;
 const TEXT_GRID_SIZE: u64 = size_of::<[u32; TEXT_COLS * TEXT_ROWS]>() as u64;
+const GRAPH_WIDTH: usize = 416;
+const GRAPH_HEIGHT: usize = 160;
+const GRAPH_SIZE: u64 = size_of::<[u32; GRAPH_WIDTH * GRAPH_HEIGHT]>() as u64;
 
 pub struct Dejong {
     renderer: Renderer,
@@ -59,12 +62,13 @@ impl Dejong {
         let shader = renderer.create_shader("assets/dejong.wgsl");
         let tsquery = renderer.create_tsquery();
         let uniform = renderer.create_buffer(UNIFORM_DATA_SIZE, BufferUsages::UNIFORM | BufferUsages::COPY_DST);
-        let frameinfo = renderer.create_buffer(14 * U32_SIZE, BufferUsages::STORAGE);
+        let frameinfo = renderer.create_buffer(15 * U32_SIZE, BufferUsages::STORAGE);
         let timestamp = renderer.create_buffer(4 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::QUERY_RESOLVE);
         let indirect = renderer.create_buffer(3 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::INDIRECT);
         let data = renderer.create_buffer(data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let font = renderer.create_buffer(FONT_DATA_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let text = renderer.create_buffer(TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let graph = renderer.create_buffer(GRAPH_SIZE, BufferUsages::STORAGE);
         renderer.update_buffer(font, cast_slice(&FONT_ROWS));
         renderer.update_buffer(text, cast_slice(&Self::overlay_text_grid()));
 
@@ -77,14 +81,14 @@ impl Dejong {
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
         renderer.add_compute_pass_indirect(shader, "dejong", indirect, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
-        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (3, indirect)];
+        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (3, indirect), (9, graph)];
         renderer.add_compute_pass(shader, "pass_2_timing", 1, &bind, None);
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
         renderer.add_compute_pass_indirect(shader, "dejong", indirect, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
-        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (8, text)];
+        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (8, text), (9, graph)];
         renderer.add_compute_pass(shader, "pass_3_timing", 1, &bind, None);
-        let bind = [(0, uniform), (2, frameinfo), (5, data), (7, font), (8, text)];
+        let bind = [(0, uniform), (2, frameinfo), (5, data), (7, font), (8, text), (9, graph)];
         renderer.add_render_pass(shader, "dejong_vs", "dejong_fs", 3, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
         let bind = [(1, timestamp), (2, frameinfo)];

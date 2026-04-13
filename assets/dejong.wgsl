@@ -36,6 +36,7 @@ struct frame_info_t {
   total_points: u32,
   current_pass: u32,
   prev_pass_1_start: u32,
+  graph_col: u32,
 };
 
 @group(0) @binding(0) var<uniform> uni: uniform_t;
@@ -46,11 +47,14 @@ struct frame_info_t {
 @group(0) @binding(5) var<storage> counts_ro: array<array<u32, 3>>;
 @group(0) @binding(7) var<storage> font: array<u32>;
 @group(0) @binding(8) var<storage, read_write> text: array<u32>;
+@group(0) @binding(9) var<storage, read_write> graph: array<u32>;
 
 const workgroup_size = 16u;
 const loop_count = 512u;
 const font_first = 32u;
 const font_size = 8u;
+const graph_width = 416u;
+const graph_height = 160u;
 
 fn ticks_ms(end: u32, start: u32) -> f32 {
   return f32(end - start) * uni.timestamp_res / 1e6;
@@ -94,8 +98,14 @@ fn pass_1_timing() {
   frame_info.current_pass = 2u;
 }
 
-@compute @workgroup_size(1)
-fn pass_2_timing() {
+@compute @workgroup_size(graph_height)
+fn pass_2_timing(@builtin(global_invocation_id) id: vec3u) {
+  if id.x < graph_height {
+    graph[id.x * graph_width + frame_info.graph_col] = 0u;
+  }
+  if id.x != 0u {
+    return;
+  }
   frame_info.pass_2_start = timestamp.start;
   frame_info.pass_2_end = timestamp.end;
   var pass_12_ms = ticks_ms(frame_info.pass_2_end, frame_info.pass_1_start);
@@ -116,9 +126,10 @@ fn pass_2_timing() {
 }
 
 @compute @workgroup_size(1)
-fn pass_3_timing() {
+fn pass_3_timing(@builtin(global_invocation_id) id: vec3u) {
   frame_info.pass_3_start = timestamp.start;
   frame_info.pass_3_end = timestamp.end;
+  draw_graph_points();
   update_overlay_values();
 }
 
@@ -170,6 +181,8 @@ fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
   var col = sample_dejong(pos.xy);
   if uni.debug_overlay > 0.5 {
     col = mix(col, vec3f(5e-3), overlay_alpha(vec2u(pos.xy)));
+    let graph_col = overlay_graph(vec2u(pos.xy));
+    col = mix(col, graph_col.rgb, graph_col.a);
     col = mix(col, vec3f(1.0), overlay_text(vec2u(pos.xy)));
   }
   return vec4f(col, 1.0);
@@ -206,7 +219,7 @@ fn overlay_pos() -> vec2u {
 
 fn overlay_alpha(pos: vec2u) -> f32 {
   let rel = pos - overlay_pos();
-  if any(rel < vec2u(0)) || any(rel >= vec2u(432, 176)) {
+  if any(rel < vec2u(0)) || any(rel >= vec2u(432, 352)) {
     return 0.0;
   }
   return 0.95;
@@ -233,6 +246,34 @@ fn overlay_text(pos: vec2u) -> f32 {
   let row = font[(ch - font_first) * font_size + px.y];
 
   return select(0.0, 1.0, (row & (1u << px.x)) != 0u);
+}
+
+fn overlay_graph(pos: vec2u) -> vec4f {
+  let rel = pos - overlay_pos() - vec2u(8, 182);
+  if rel.x >= graph_width || rel.y >= graph_height {
+    return vec4f(0.0);
+  }
+  let x = (rel.x + frame_info.graph_col) % graph_width;
+  switch (graph[rel.y * graph_width + x]) {
+    case 1u: {
+      return vec4f(0.0, 1.0, 0.0, 1.0);
+    }
+    case 2u: {
+      return vec4f(1.0, 0.0, 0.0, 1.0);
+    }
+    case 3u: {
+      return vec4f(0.0, 0.1, 0.0, 1.0);
+    }
+    case 4u: {
+      return vec4f(0.15, 0.1, 0.0, 1.0);
+    }
+    case 5u: {
+      return vec4f(0.15, 0.0, 0.0, 1.0);
+    }
+    default: {
+      return vec4f(0.0);
+    }
+  }
 }
 
 fn pow10(n: u32) -> u32 {
@@ -286,7 +327,7 @@ fn update_overlay_values() {
         fmt = vec3u(3u, 2u, 26u + 7u);
       }
       case 3u: {
-        value = f32(frame_info.total_points) / 1000000.0;
+        value = f32(frame_info.total_points) / 1e6;
         fmt = vec3u(3u, 1u, 26u + 17u);
       }
       case 4u: {
@@ -294,7 +335,7 @@ fn update_overlay_values() {
         fmt = vec3u(3u, 2u, 52u + 7u);
       }
       case 5u: {
-        value = f32(frame_info.pass_1_points) / 1000000.0;
+        value = f32(frame_info.pass_1_points) / 1e6;
         fmt = vec3u(3u, 1u, 52u + 17u);
       }
       case 6u: {
@@ -302,7 +343,7 @@ fn update_overlay_values() {
         fmt = vec3u(3u, 2u, 78u + 7u);
       }
       case 7u: {
-        value = f32(frame_info.pass_2_points) / 1000000.0;
+        value = f32(frame_info.pass_2_points) / 1e6;
         fmt = vec3u(3u, 1u, 78u + 17u);
       }
       case 8u: {
@@ -310,7 +351,7 @@ fn update_overlay_values() {
         fmt = vec3u(3u, 2u, 104u + 7u);
       }
       case 9u: {
-        value = f32(frame_info.pass_3_points) / 1000000.0;
+        value = f32(frame_info.pass_3_points) / 1e6;
         fmt = vec3u(3u, 1u, 104u + 17u);
       }
       case 10u: {
@@ -329,4 +370,19 @@ fn update_overlay_values() {
 
     write_number(fmt.z, value, fmt.x, fmt.y);
   }
+}
+
+fn draw_graph_points() {
+  draw_graph_point(2u, ticks_ms(frame_info.render_end, frame_info.prev_pass_1_start) / 20.0);
+  draw_graph_point(3u, ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start) / 20.0);
+  draw_graph_point(4u, ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start) / 20.0);
+  draw_graph_point(5u, ticks_ms(frame_info.pass_3_end, frame_info.pass_3_start) / 20.0);
+  draw_graph_point(1u, ticks_ms(frame_info.pass_1_start, frame_info.prev_pass_1_start) / 20.0);
+  frame_info.graph_col = (frame_info.graph_col + 1u) % graph_width;
+}
+  
+fn draw_graph_point(graph_id: u32, yf: f32) {
+  let y = min(u32(yf * f32(graph_height)), graph_height - 2u);
+  graph[(graph_height - y - 1u) * graph_width + frame_info.graph_col] = graph_id;
+  graph[(graph_height - y - 2u) * graph_width + frame_info.graph_col] = graph_id;
 }
