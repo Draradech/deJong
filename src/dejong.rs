@@ -69,6 +69,7 @@ impl Dejong {
         let font = renderer.create_buffer(FONT_DATA_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let text = renderer.create_buffer(TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let graph = renderer.create_buffer(GRAPH_SIZE, BufferUsages::STORAGE);
+        let filter = renderer.create_buffer(13 * U32_SIZE, BufferUsages::STORAGE);
         renderer.update_buffer(font, cast_slice(&FONT_ROWS));
         renderer.update_buffer(text, cast_slice(&Self::overlay_text_grid()));
 
@@ -86,7 +87,7 @@ impl Dejong {
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
         renderer.add_compute_pass_indirect(shader, "dejong", indirect, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
-        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (8, text), (9, graph)];
+        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (6, filter), (8, text), (9, graph)];
         renderer.add_compute_pass(shader, "pass_3_timing", 1, &bind, None);
         let bind = [(0, uniform), (2, frameinfo), (5, data), (7, font), (8, text), (9, graph)];
         renderer.add_render_pass(shader, "dejong_vs", "dejong_fs", 3, &bind, Some(tsquery));

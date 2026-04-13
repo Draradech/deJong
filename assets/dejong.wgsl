@@ -45,6 +45,7 @@ struct frame_info_t {
 @group(0) @binding(3) var<storage, read_write> dispatch: vec3u;
 @group(0) @binding(4) var<storage, read_write> counts: array<array<atomic<u32>, 3>>;
 @group(0) @binding(5) var<storage> counts_ro: array<array<u32, 3>>;
+@group(0) @binding(6) var<storage, read_write> filter_values: array<f32>;
 @group(0) @binding(7) var<storage> font: array<u32>;
 @group(0) @binding(8) var<storage, read_write> text: array<u32>;
 @group(0) @binding(9) var<storage, read_write> graph: array<u32>;
@@ -94,9 +95,9 @@ fn pass_1_timing() {
   frame_info.current_pass = 2u;
 }
 
-@compute @workgroup_size(graph_height)
+@compute @workgroup_size(graph_size.y)
 fn pass_2_timing(@builtin(global_invocation_id) id: vec3u) {
-  graph[id.x * graph_width + frame_info.graph_col] = 0u;
+  graph[id.x * graph_size.x + frame_info.graph_col] = 0u;
   if id.x != 0u {
     return;
   }
@@ -209,8 +210,6 @@ fn dejong_color(texel: vec2u) -> vec3f {
 
 const font_first = 32u;
 const font_size = 8u;
-const graph_width = 416u;
-const graph_height = 160u;
 const overlay_margin = vec2u(16);
 const overlay_padding = vec2u(8);
 const text_cols = 26u;
@@ -219,7 +218,8 @@ const text_scale = 2u;
 const glyph_size = vec2u(font_size) * text_scale;
 const stride = glyph_size + vec2u(0, glyph_size.y / 2);
 const graph_offset = vec2u(0, stride.y * text_rows + overlay_padding.y) + overlay_padding;
-const overlay_size = vec2u(stride.x * text_cols, stride.y * text_rows + overlay_padding.y + graph_height) + overlay_padding * 2;
+const graph_size = vec2u(stride.x * text_cols, 160u);
+const overlay_size = vec2u(graph_size.x, stride.y * text_rows + overlay_padding.y + graph_size.y) + overlay_padding * 2;
 
 fn overlay_pos() -> vec2u {
   return vec2u(u32(uni.screen_width) - overlay_size.x - overlay_margin.x, overlay_margin.y);
@@ -255,32 +255,18 @@ fn overlay_text(pos: vec2u) -> f32 {
 
 fn overlay_graph(pos: vec2u) -> vec4f {
   let rel = pos - overlay_pos() - graph_offset;
-  if rel.x >= graph_width || rel.y >= graph_height {
+  if any(rel >= graph_size) {
     return vec4f(0.0);
   }
-  let x = (rel.x + frame_info.graph_col) % graph_width;
-  switch (graph[rel.y * graph_width + x]) {
-    case 1u: {
-      return vec4f(0.0, 1.0, 0.0, 1.0);
-    }
-    case 2u: {
-      return vec4f(1.0, 0.0, 0.0, 1.0);
-    }
-    case 3u: {
-      return vec4f(0.0, 0.1, 0.0, 1.0);
-    }
-    case 4u: {
-      return vec4f(0.15, 0.1, 0.0, 1.0);
-    }
-    case 5u: {
-      return vec4f(0.15, 0.0, 0.0, 1.0);
-    }
-    case 6u: {
-      return vec4f(0.0, 1.0, 1.0, 1.0);
-    }
-    default: {
-      return vec4f(vec3f(0.0), 0.5);
-    }
+  let x = (rel.x + frame_info.graph_col) % graph_size.x;
+  switch (graph[rel.y * graph_size.x + x]) {
+    case 1u: {return vec4f(0.0, 1.0, 0.0, 1.0);}
+    case 2u: {return vec4f(1.0, 0.0, 0.0, 1.0);}
+    case 3u: {return vec4f(0.0, 0.1, 0.0, 1.0);}
+    case 4u: {return vec4f(0.15, 0.1, 0.0, 1.0);}
+    case 5u: {return vec4f(0.15, 0.0, 0.0, 1.0);}
+    case 6u: {return vec4f(0.0, 1.0, 1.0, 1.0);}
+    default: {return vec4f(vec3f(0.0), 0.5);}
   }
 }
 
@@ -302,7 +288,7 @@ fn write_uint(offset: u32, value: u32, digits: u32) {
 
 fn write_number(offset: u32, value: f32, digits_base: u32, digits_fract: u32) {
   let scale = pow10(digits_fract);
-  let scaled = u32(max(value, 0.0) * f32(scale));
+  let scaled = u32(max(value, 0.0) * f32(scale) + 0.5);
   write_uint(offset, scaled / scale, digits_base);
   for (var i = 0u; i + 1u < digits_base; i++) {
     if text[offset + i] != 48u {
@@ -376,6 +362,10 @@ fn update_overlay_values() {
       }
     }
 
+    if i < 11 {
+      filter_values[i] = value + (filter_values[i] - value) * 0.98;
+      value = filter_values[i];
+    }
     write_number(fmt.z, value, fmt.x, fmt.y);
   }
 }
@@ -387,7 +377,7 @@ fn draw_graph_points() {
   draw_graph_point(4u, ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start) / 20.0);
   draw_graph_point(5u, ticks_ms(frame_info.pass_3_end, frame_info.pass_3_start) / 20.0);
   draw_graph_point(1u, ticks_ms(frame_info.pass_1_start, frame_info.prev_pass_1_start) / 20.0);
-  frame_info.graph_col = (frame_info.graph_col + 1u) % graph_width;
+  frame_info.graph_col = (frame_info.graph_col + 1u) % graph_size.x;
 }
 
 fn draw_graph_log_point(graph_id: u32, value: f32, minv: f32, maxv: f32) {
@@ -396,7 +386,7 @@ fn draw_graph_log_point(graph_id: u32, value: f32, minv: f32, maxv: f32) {
 }
   
 fn draw_graph_point(graph_id: u32, yf: f32) {
-  let y = min(u32(yf * f32(graph_height)), graph_height - 2u);
-  graph[(graph_height - y - 1u) * graph_width + frame_info.graph_col] = graph_id;
-  graph[(graph_height - y - 2u) * graph_width + frame_info.graph_col] = graph_id;
+  let y = min(u32(yf * f32(graph_size.y)), graph_size.y - 2u);
+  graph[(graph_size.y - y - 1u) * graph_size.x + frame_info.graph_col] = graph_id;
+  graph[(graph_size.y - y - 2u) * graph_size.x + frame_info.graph_col] = graph_id;
 }
