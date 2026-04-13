@@ -50,7 +50,7 @@ struct frame_info_t {
 @group(0) @binding(9) var<storage, read_write> graph: array<u32>;
 
 const workgroup_size = 16u;
-const loop_count = 512u;
+const loop_count = 100u;
 const font_first = 32u;
 const font_size = 8u;
 const graph_width = 416u;
@@ -79,7 +79,7 @@ fn pcg3df(vin: vec3u) -> vec3f {
 @compute @workgroup_size(1)
 fn pass_1_timing() {
   frame_info.prev_pass_1_start = frame_info.pass_1_start;
-  frame_info.pass_1_points = 16u * workgroup_size * workgroup_size * loop_count;
+  frame_info.pass_1_points = 64u * workgroup_size * workgroup_size * loop_count;
   frame_info.pass_1_start = timestamp.start;
   frame_info.pass_1_end = timestamp.end;
   var pass_1_ms = ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start);
