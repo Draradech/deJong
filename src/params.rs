@@ -47,7 +47,7 @@ impl Default for Params {
             speed: 100.0,
             brightness: 100.0,
             budget: 15.0,
-            gamma: 1.8,
+            gamma: 1.5,
             scale: 100.0,
             paused: false,
             debug_overlay: false,
