@@ -78,7 +78,9 @@ impl Renderer {
     pub async fn new(window: Arc<Window>) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let surface = instance.create_surface(window.clone()).expect("create surface");
-        let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions::default()).await.expect("request_adapter");
+        let adapter = wgpu::util::initialize_adapter_from_env_or_default(&instance, Some(&surface))
+            .await
+            .expect("request_adapter");
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::TIMESTAMP_QUERY,
