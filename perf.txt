@@ -1,0 +1,19 @@
+windows / nvidia 4070 / vulkan / 1440px / 100% / vsync 60 / budget 15
+15.07ms 163.5M
+
+windows / nvidia 4070 / dx12 / 1440px / 100% / vsync 60 / budget 15
+15.15ms 163.1M
+
+linux / nvidia 4070 / vulkan / 1440px / 100% / vsync 60 / budget 15
+15.25ms 57.4M
+
+windows / adl gt2 iris xe / vulkan / 1024px / 68.1% / vsync 60? / budget 15
+15.72ms 22.2M no sync
+
+windows / adl gt2 iris xe / dx12 / 1024px / 68.1% / vsync 60? / budget 15
+16.16ms 21.8M no sync
+
+linux / adl gt2 iris xe / vulkan / 1024px / 68.1% / vsync 60? / budget 15
+13.2ms 15.2M no sync
+
+

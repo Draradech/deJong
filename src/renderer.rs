@@ -87,8 +87,9 @@ impl Renderer {
             .await
             .expect("request device");
         let size = window.inner_size();
-        let config =
+        let mut config =
             surface.get_default_config(&adapter, size.width.max(1), size.height.max(1)).expect("get surface config");
+        config.present_mode = wgpu::PresentMode::Fifo;
         assert!(config.format.is_srgb(), "non-sRGB surface format: {:?}", config.format);
         surface.configure(&device, &config);
         let info = adapter.get_info();
