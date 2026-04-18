@@ -50,7 +50,8 @@ struct frame_info_t {
 @group(0) @binding(8) var<storage, read_write> text: array<u32>;
 @group(0) @binding(9) var<storage, read_write> graph: array<u32>;
 
-const workgroup_size = 16u;
+const workgroup_size = 256u;
+const prerun_count = 32u;
 const loop_count = 100u;
 
 fn ticks_ms(end: u32, start: u32) -> f32 {
@@ -76,7 +77,7 @@ fn pcg3df(vin: vec3u) -> vec3f {
 @compute @workgroup_size(1)
 fn pass_1_timing() {
   frame_info.prev_pass_1_start = frame_info.pass_1_start;
-  frame_info.pass_1_points = 64u * workgroup_size * workgroup_size * loop_count;
+  frame_info.pass_1_points = 64u * workgroup_size * loop_count;
   frame_info.pass_1_start = timestamp.start;
   frame_info.pass_1_end = timestamp.end;
   var pass_1_ms = ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start);
@@ -85,10 +86,10 @@ fn pass_1_timing() {
   let pass_2_ratio = 0.5 - pass_1_ratio;
   var pass_2_points = f32(frame_info.pass_1_points) / pass_1_ratio * pass_2_ratio;
   pass_2_points = max(pass_2_points, 0.0);
-  var pass_2_invocations = u32(pass_2_points / f32(workgroup_size) / f32(workgroup_size) / f32(loop_count));
+  var pass_2_invocations = u32(pass_2_points / f32(workgroup_size) / f32(loop_count));
   pass_2_invocations = max(pass_2_invocations, 1u);
   pass_2_invocations = min(pass_2_invocations, 0xffffu);
-  frame_info.pass_2_points = pass_2_invocations * workgroup_size * workgroup_size * loop_count;
+  frame_info.pass_2_points = pass_2_invocations * workgroup_size * loop_count;
   dispatch.x = pass_2_invocations;
   dispatch.y = 1u;
   dispatch.z = 1u;
@@ -109,10 +110,10 @@ fn pass_2_timing(@builtin(global_invocation_id) id: vec3u) {
   let pass_3_ratio = 1.0 - pass_12_ratio;
   var pass_3_points = f32(frame_info.pass_1_points + frame_info.pass_2_points) / pass_12_ratio * pass_3_ratio;
   pass_3_points = max(pass_3_points, 0.0);
-  var pass_3_invocations = u32(pass_3_points / f32(workgroup_size) / f32(workgroup_size) / f32(loop_count));
+  var pass_3_invocations = u32(pass_3_points / f32(workgroup_size) / f32(loop_count));
   pass_3_invocations = max(pass_3_invocations, 1u);
   pass_3_invocations = min(pass_3_invocations, 0xffffu);
-  frame_info.pass_3_points = pass_3_invocations * workgroup_size * workgroup_size * loop_count;
+  frame_info.pass_3_points = pass_3_invocations * workgroup_size * loop_count;
   frame_info.total_points = frame_info.pass_1_points + frame_info.pass_2_points + frame_info.pass_3_points;
   dispatch.x = pass_3_invocations;
   dispatch.y = 1u;
@@ -135,12 +136,12 @@ fn render_timing() {
   frame_info.current_pass = 1u;
 }
 
-@compute @workgroup_size(workgroup_size, workgroup_size)
+@compute @workgroup_size(workgroup_size)
 fn dejong(@builtin(global_invocation_id) id: vec3u) {
-  let random = pcg3df(vec3u(id.xy, u32(uni.frame) + frame_info.current_pass));
+  let random = pcg3df(vec3u(id.x, u32(uni.frame), frame_info.current_pass));
   var p1 = 2.0 * sin(6.28 * random.xy);
 
-  for (var i = 0u; i < 16u; i++) {
+  for (var i = 0u; i < prerun_count; i++) {
     let p2 = vec2f(
       sin(uni.a * p1.y) - cos(uni.b * p1.x),
       sin(uni.c * p1.x) - cos(uni.d * p1.y),
@@ -157,8 +158,8 @@ fn dejong(@builtin(global_invocation_id) id: vec3u) {
     let index = texel.y * u32(uni.texture_size) + texel.x;
     let delta = p2 - p1;
     atomicAdd(&counts[index][0], u32(256.0 * abs(delta.x)));
-    atomicAdd(&counts[index][1], u32(256.0 * abs(delta.y)));
-    atomicAdd(&counts[index][2], 256u);
+    atomicAdd(&counts[index][1], u32(224.0 * abs(delta.y)));
+    atomicAdd(&counts[index][2], 192u);
     p1 = p2;
   }
 }
