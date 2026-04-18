@@ -211,16 +211,17 @@ fn dejong_color(texel: vec2u) -> vec3f {
 
 const font_first = 32u;
 const font_size = 8u;
-const overlay_margin = vec2u(16);
+const overlay_margin = vec2u(8);
 const overlay_padding = vec2u(8);
 const text_cols = 26u;
 const text_rows = 7u;
 const text_scale = 2u;
 const glyph_size = vec2u(font_size) * text_scale;
 const stride = glyph_size + vec2u(0, glyph_size.y / 2);
-const graph_offset = vec2u(0, stride.y * text_rows + overlay_padding.y) + overlay_padding;
+const text_height = stride.y * text_rows - (stride.y - glyph_size.y);
+const graph_offset = vec2u(0, text_height + overlay_padding.y) + overlay_padding;
 const graph_size = vec2u(stride.x * text_cols, 160u);
-const overlay_size = vec2u(graph_size.x, stride.y * text_rows + overlay_padding.y + graph_size.y) + overlay_padding * 2;
+const overlay_size = vec2u(graph_size.x, text_height + overlay_padding.y + graph_size.y) + overlay_padding * 2;
 
 fn overlay_pos() -> vec2u {
   return vec2u(u32(uni.screen_width) - overlay_size.x - overlay_margin.x, overlay_margin.y);
@@ -319,47 +320,47 @@ fn update_overlay_values() {
       }
       case 2u: {
         value = ticks_ms(frame_info.render_end, frame_info.prev_pass_1_start);
-        fmt = vec3u(3u, 2u, 26u + 7u);
+        fmt = vec3u(3u, 2u, text_cols + 7u);
       }
       case 3u: {
         value = f32(frame_info.total_points) / 1e6;
-        fmt = vec3u(3u, 1u, 26u + 17u);
+        fmt = vec3u(3u, 1u, text_cols + 17u);
       }
       case 4u: {
         value = ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start);
-        fmt = vec3u(3u, 2u, 52u + 7u);
+        fmt = vec3u(3u, 2u, 2u * text_cols + 7u);
       }
       case 5u: {
         value = f32(frame_info.pass_1_points) / 1e6;
-        fmt = vec3u(3u, 1u, 52u + 17u);
+        fmt = vec3u(3u, 1u, 2u * text_cols + 17u);
       }
       case 6u: {
         value = ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start);
-        fmt = vec3u(3u, 2u, 78u + 7u);
+        fmt = vec3u(3u, 2u, 3u * text_cols + 7u);
       }
       case 7u: {
         value = f32(frame_info.pass_2_points) / 1e6;
-        fmt = vec3u(3u, 1u, 78u + 17u);
+        fmt = vec3u(3u, 1u, 3u * text_cols + 17u);
       }
       case 8u: {
         value = ticks_ms(frame_info.pass_3_end, frame_info.pass_3_start);
-        fmt = vec3u(3u, 2u, 104u + 7u);
+        fmt = vec3u(3u, 2u, 4u * text_cols + 7u);
       }
       case 9u: {
         value = f32(frame_info.pass_3_points) / 1e6;
-        fmt = vec3u(3u, 1u, 104u + 17u);
+        fmt = vec3u(3u, 1u, 4u * text_cols + 17u);
       }
       case 10u: {
         value = ticks_ms(frame_info.render_end, frame_info.render_start);
-        fmt = vec3u(3u, 2u, 130u + 7u);
+        fmt = vec3u(3u, 2u, 5u * text_cols + 7u);
       }
       case 11u: {
         value = uni.texture_size;
-        fmt = vec3u(4u, 0u, 156u + 9u);
+        fmt = vec3u(4u, 0u, 6u * text_cols + 9u);
       }
       default: {
         value = uni.texture_size * uni.texture_size * 12.0 / 1024.0 / 1024.0;
-        fmt = vec3u(3u, 1u, 156u + 17u);
+        fmt = vec3u(3u, 1u, 6u * text_cols + 17u);
       }
     }
 
