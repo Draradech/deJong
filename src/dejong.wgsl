@@ -96,9 +96,9 @@ fn pass_1_timing() {
   frame_info.current_pass = 2u;
 }
 
-@compute @workgroup_size(graph_size.y)
+@compute @workgroup_size(perf_graph_height)
 fn pass_2_timing(@builtin(global_invocation_id) id: vec3u) {
-  graph[id.x * graph_size.x + frame_info.graph_col] = 0u;
+  graph[id.x * perf_graph_width + frame_info.graph_col] = 0u;
   if id.x != 0u {
     return;
   }
@@ -209,19 +209,13 @@ fn dejong_color(texel: vec2u) -> vec3f {
   return clamp(col, vec3f(0.0), vec3f(1.0));
 }
 
-const font_first = 32u;
-const font_size = 8u;
 const overlay_margin = vec2u(8);
 const overlay_padding = vec2u(8);
-const text_cols = 26u;
-const text_rows = 7u;
-const text_scale = 2u;
-const glyph_size = vec2u(font_size) * text_scale;
+const glyph_size = vec2u(font_width, font_height) * text_scale;
 const stride = glyph_size + vec2u(0, glyph_size.y / 2);
-const text_height = stride.y * text_rows - (stride.y - glyph_size.y);
+const text_height = stride.y * perf_text_rows - (stride.y - glyph_size.y);
 const graph_offset = vec2u(0, text_height + overlay_padding.y) + overlay_padding;
-const graph_size = vec2u(stride.x * text_cols, 160u);
-const overlay_size = vec2u(graph_size.x, text_height + overlay_padding.y + graph_size.y) + overlay_padding * 2;
+const overlay_size = vec2u(perf_graph_width, text_height + overlay_padding.y + perf_graph_height) + overlay_padding * 2;
 
 fn overlay_pos() -> vec2u {
   return vec2u(u32(uni.screen_width) - overlay_size.x - overlay_margin.x, overlay_margin.y);
@@ -239,7 +233,7 @@ fn overlay_text(pos: vec2u) -> f32 {
 
   let rel = pos - overlay_pos() - overlay_padding;
   let cell = rel / stride;
-  if cell.x >= text_cols || cell.y >= text_rows {
+  if cell.x >= perf_text_cols || cell.y >= perf_text_rows {
     return 0.0;
   }
 
@@ -248,20 +242,20 @@ fn overlay_text(pos: vec2u) -> f32 {
     return 0.0;
   }
 
-  let ch = text[cell.y * text_cols + cell.x];
+  let ch = text[cell.y * perf_text_cols + cell.x];
   let px = local / text_scale;
-  let row = font[(ch - font_first) * font_size + px.y];
+  let row = font[(ch - font_first) * font_height + px.y];
 
   return select(0.0, 1.0, (row & (1u << px.x)) != 0u);
 }
 
 fn overlay_graph(pos: vec2u) -> vec4f {
   let rel = pos - overlay_pos() - graph_offset;
-  if any(rel >= graph_size) {
+  if any(rel >= vec2u(perf_graph_width, perf_graph_height)) {
     return vec4f(0.0);
   }
-  let x = (rel.x + frame_info.graph_col) % graph_size.x;
-  switch (graph[rel.y * graph_size.x + x]) {
+  let x = (rel.x + frame_info.graph_col) % perf_graph_width;
+  switch (graph[rel.y * perf_graph_width + x]) {
     case 1u: {return vec4f(0.0, 1.0, 0.0, 1.0);}
     case 2u: {return vec4f(1.0, 0.0, 0.0, 1.0);}
     case 3u: {return vec4f(0.0, 0.1, 0.0, 1.0);}
@@ -320,47 +314,47 @@ fn update_overlay_values() {
       }
       case 2u: {
         value = ticks_ms(frame_info.render_end, frame_info.prev_pass_1_start);
-        fmt = vec3u(3u, 2u, text_cols + 7u);
+        fmt = vec3u(3u, 2u, perf_text_cols + 7u);
       }
       case 3u: {
         value = f32(frame_info.total_points) / 1e6;
-        fmt = vec3u(3u, 1u, text_cols + 17u);
+        fmt = vec3u(3u, 1u, perf_text_cols + 17u);
       }
       case 4u: {
         value = ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start);
-        fmt = vec3u(3u, 2u, 2u * text_cols + 7u);
+        fmt = vec3u(3u, 2u, 2u * perf_text_cols + 7u);
       }
       case 5u: {
         value = f32(frame_info.pass_1_points) / 1e6;
-        fmt = vec3u(3u, 1u, 2u * text_cols + 17u);
+        fmt = vec3u(3u, 1u, 2u * perf_text_cols + 17u);
       }
       case 6u: {
         value = ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start);
-        fmt = vec3u(3u, 2u, 3u * text_cols + 7u);
+        fmt = vec3u(3u, 2u, 3u * perf_text_cols + 7u);
       }
       case 7u: {
         value = f32(frame_info.pass_2_points) / 1e6;
-        fmt = vec3u(3u, 1u, 3u * text_cols + 17u);
+        fmt = vec3u(3u, 1u, 3u * perf_text_cols + 17u);
       }
       case 8u: {
         value = ticks_ms(frame_info.pass_3_end, frame_info.pass_3_start);
-        fmt = vec3u(3u, 2u, 4u * text_cols + 7u);
+        fmt = vec3u(3u, 2u, 4u * perf_text_cols + 7u);
       }
       case 9u: {
         value = f32(frame_info.pass_3_points) / 1e6;
-        fmt = vec3u(3u, 1u, 4u * text_cols + 17u);
+        fmt = vec3u(3u, 1u, 4u * perf_text_cols + 17u);
       }
       case 10u: {
         value = ticks_ms(frame_info.render_end, frame_info.render_start);
-        fmt = vec3u(3u, 2u, 5u * text_cols + 7u);
+        fmt = vec3u(3u, 2u, 5u * perf_text_cols + 7u);
       }
       case 11u: {
         value = uni.texture_size;
-        fmt = vec3u(4u, 0u, 6u * text_cols + 9u);
+        fmt = vec3u(4u, 0u, 6u * perf_text_cols + 9u);
       }
       default: {
         value = uni.texture_size * uni.texture_size * 12.0 / 1024.0 / 1024.0;
-        fmt = vec3u(3u, 1u, 6u * text_cols + 17u);
+        fmt = vec3u(3u, 1u, 6u * perf_text_cols + 17u);
       }
     }
 
@@ -379,7 +373,7 @@ fn draw_graph_points() {
   draw_graph_point(4u, ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start) / 20.0);
   draw_graph_point(5u, ticks_ms(frame_info.pass_3_end, frame_info.pass_3_start) / 20.0);
   draw_graph_point(1u, ticks_ms(frame_info.pass_1_start, frame_info.prev_pass_1_start) / 20.0);
-  frame_info.graph_col = (frame_info.graph_col + 1u) % graph_size.x;
+  frame_info.graph_col = (frame_info.graph_col + 1u) % perf_graph_width;
 }
 
 fn draw_graph_log_point(graph_id: u32, value: f32, minv: f32, maxv: f32) {
@@ -388,7 +382,7 @@ fn draw_graph_log_point(graph_id: u32, value: f32, minv: f32, maxv: f32) {
 }
   
 fn draw_graph_point(graph_id: u32, yf: f32) {
-  let y = min(u32(yf * f32(graph_size.y)), graph_size.y - 2u);
-  graph[(graph_size.y - y - 1u) * graph_size.x + frame_info.graph_col] = graph_id;
-  graph[(graph_size.y - y - 2u) * graph_size.x + frame_info.graph_col] = graph_id;
+  let y = min(u32(yf * f32(perf_graph_height)), perf_graph_height - 2u);
+  graph[(perf_graph_height - y - 1u) * perf_graph_width + frame_info.graph_col] = graph_id;
+  graph[(perf_graph_height - y - 2u) * perf_graph_width + frame_info.graph_col] = graph_id;
 }

@@ -7,19 +7,20 @@ use wgpu::BufferUsages;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::font::FONT_ROWS;
+use crate::font::{FONT_FIRST, FONT_HEIGHT, FONT_ROWS, FONT_WIDTH};
 use crate::params::{Params, UniformData};
 use crate::renderer::{BufferId, Renderer};
 
 const U32_SIZE: u64 = size_of::<u32>() as u64;
 const UNIFORM_DATA_SIZE: u64 = size_of::<UniformData>() as u64;
 const FONT_DATA_SIZE: u64 = size_of::<[u32; FONT_ROWS.len()]>() as u64;
-const TEXT_COLS: usize = 26;
-const TEXT_ROWS: usize = 7;
-const TEXT_GRID_SIZE: u64 = size_of::<[u32; TEXT_COLS * TEXT_ROWS]>() as u64;
-const GRAPH_WIDTH: usize = TEXT_COLS * 8 * 2;
-const GRAPH_HEIGHT: usize = 160;
-const GRAPH_SIZE: u64 = size_of::<[u32; GRAPH_WIDTH * GRAPH_HEIGHT]>() as u64;
+const TEXT_SCALE: usize = 2;
+const PERF_TEXT_COLS: usize = 26;
+const PERF_TEXT_ROWS: usize = 7;
+const PERF_TEXT_GRID_SIZE: u64 = size_of::<[u32; PERF_TEXT_COLS * PERF_TEXT_ROWS]>() as u64;
+const PERF_GRAPH_WIDTH: usize = PERF_TEXT_COLS * FONT_WIDTH as usize * TEXT_SCALE;
+const PERF_GRAPH_HEIGHT: usize = 160;
+const PERF_GRAPH_SIZE: u64 = size_of::<[u32; PERF_GRAPH_WIDTH * PERF_GRAPH_HEIGHT]>() as u64;
 
 pub struct Dejong {
     renderer: Renderer,
@@ -31,7 +32,30 @@ pub struct Dejong {
 }
 
 impl Dejong {
-    fn overlay_text_grid() -> [u32; TEXT_COLS * TEXT_ROWS] {
+    fn shader_prelude() -> String {
+        format!(
+            "\
+const font_first = {}u;
+const font_width = {}u;
+const font_height = {}u;
+const text_scale = {}u;
+const perf_text_cols = {}u;
+const perf_text_rows = {}u;
+const perf_graph_width = {}u;
+const perf_graph_height = {}u;
+",
+            FONT_FIRST,
+            FONT_WIDTH,
+            FONT_HEIGHT,
+            TEXT_SCALE,
+            PERF_TEXT_COLS,
+            PERF_TEXT_ROWS,
+            PERF_GRAPH_WIDTH,
+            PERF_GRAPH_HEIGHT,
+        )
+    }
+
+    fn perf_text_grid() -> [u32; PERF_TEXT_COLS * PERF_TEXT_ROWS] {
         const TEXT: &str = concat!(
             "Frame  000.00 ms 000.0 fps",
             "Total  000.00 ms 000.0 M  ",
@@ -59,7 +83,8 @@ impl Dejong {
         let screen_size = window.inner_size();
         let data_size = Self::data_buffer_size(screen_size.height, params.scale);
 
-        let shader = renderer.create_shader("assets/dejong.wgsl");
+        let shader_source = Self::shader_prelude() + include_str!("dejong.wgsl");
+        let shader = renderer.create_shader(&shader_source);
         let tsquery = renderer.create_tsquery();
         let uniform = renderer.create_buffer(UNIFORM_DATA_SIZE, BufferUsages::UNIFORM | BufferUsages::COPY_DST);
         let frameinfo = renderer.create_buffer(15 * U32_SIZE, BufferUsages::STORAGE);
@@ -68,10 +93,10 @@ impl Dejong {
         let indirect = renderer.create_buffer(3 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::INDIRECT);
         let data = renderer.create_buffer(data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let font = renderer.create_buffer(FONT_DATA_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
-        let text = renderer.create_buffer(TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
-        let graph = renderer.create_buffer(GRAPH_SIZE, BufferUsages::STORAGE);
+        let text = renderer.create_buffer(PERF_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let graph = renderer.create_buffer(PERF_GRAPH_SIZE, BufferUsages::STORAGE);
         renderer.update_buffer(font, cast_slice(&FONT_ROWS));
-        renderer.update_buffer(text, cast_slice(&Self::overlay_text_grid()));
+        renderer.update_buffer(text, cast_slice(&Self::perf_text_grid()));
 
         renderer.add_clear_pass(data);
         let bind = [(0, uniform), (2, frameinfo), (4, data)];

@@ -1,4 +1,4 @@
-use std::{fs, path::Path, sync::Arc};
+use std::sync::Arc;
 
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -118,11 +118,8 @@ impl Renderer {
         self.queue.get_timestamp_period()
     }
 
-    pub fn create_shader(&mut self, path: impl AsRef<Path>) -> ShaderId {
+    pub fn create_shader(&mut self, source: &str) -> ShaderId {
         let id = ShaderId(self.shaders.len());
-        let path = path.as_ref();
-        let source =
-            fs::read_to_string(path).unwrap_or_else(|err| panic!("failed to read shader {}: {}", path.display(), err));
         let shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(source.into()),
