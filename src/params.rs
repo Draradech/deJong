@@ -112,10 +112,24 @@ impl Params {
         }
     }
 
+    pub fn ctrl_overlay_lines(&self) -> Vec<String> {
+        let t = self.t;
+        vec![
+            format!("  speed   {:>7.1}%", self.speed),
+            format!("  t       {:>9.3}", self.t),
+            format!("  a       {:>9.3}", 4.0_f64 * (t * 1.03_f64).sin()),
+            format!("  b       {:>9.3}", 4.0_f64 * (t * 1.07_f64).sin()),
+            format!("  c       {:>9.3}", 4.0_f64 * (t * 1.09_f64).sin()),
+            format!("  d       {:>9.3}", 4.0_f64 * (t * 1.13_f64).sin()),
+            "  step        1.000".to_string(),
+            format!("  animate   {}", if self.paused { "off" } else { "on " }),
+        ]
+    }
+
     pub fn describe(&self) -> String {
         format!(
-            "scale={:.0}% speed={:.1}% bright={:.0}% gamma={:.2} budget={:.2}ms paused={}",
-            self.scale, self.speed, self.brightness, self.gamma, self.budget, self.paused
+            "scale={:.0}% bright={:.0}% gamma={:.2} budget={:.2}ms",
+            self.scale, self.brightness, self.gamma, self.budget
         )
     }
 }

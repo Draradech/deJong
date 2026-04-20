@@ -21,12 +21,16 @@ const PERF_TEXT_GRID_SIZE: u64 = size_of::<[u32; PERF_TEXT_COLS * PERF_TEXT_ROWS
 const PERF_GRAPH_WIDTH: usize = PERF_TEXT_COLS * FONT_WIDTH as usize * TEXT_SCALE;
 const PERF_GRAPH_HEIGHT: usize = 160;
 const PERF_GRAPH_SIZE: u64 = size_of::<[u32; PERF_GRAPH_WIDTH * PERF_GRAPH_HEIGHT]>() as u64;
+const CTRL_TEXT_COLS: usize = 26;
+const CTRL_TEXT_ROWS: usize = 12;
+const CTRL_TEXT_GRID_SIZE: u64 = size_of::<[u32; CTRL_TEXT_COLS * CTRL_TEXT_ROWS]>() as u64;
 
 pub struct Dejong {
     renderer: Renderer,
     pub(crate) params: Params,
     uniform_id: BufferId,
     data_id: BufferId,
+    ctrl_text_id: BufferId,
     screen_size: PhysicalSize<u32>,
     frame_index: u32,
 }
@@ -43,6 +47,8 @@ const perf_text_cols = {}u;
 const perf_text_rows = {}u;
 const perf_graph_width = {}u;
 const perf_graph_height = {}u;
+const ctrl_text_cols = {}u;
+const ctrl_text_rows = {}u;
 ",
             FONT_FIRST,
             FONT_WIDTH,
@@ -52,20 +58,33 @@ const perf_graph_height = {}u;
             PERF_TEXT_ROWS,
             PERF_GRAPH_WIDTH,
             PERF_GRAPH_HEIGHT,
+            CTRL_TEXT_COLS,
+            CTRL_TEXT_ROWS,
         )
     }
 
     fn perf_text_grid() -> [u32; PERF_TEXT_COLS * PERF_TEXT_ROWS] {
-        const TEXT: &str = concat!(
+        Self::pack_text_grid::<PERF_TEXT_COLS, PERF_TEXT_ROWS, { PERF_TEXT_COLS * PERF_TEXT_ROWS }>(&[
             "Frame  000.00 ms 000.0 fps",
-            "Total  000.00 ms 000.0 M  ",
-            "Pass 1 000.00 ms 000.0 M  ",
-            "Pass 2 000.00 ms 000.0 M  ",
-            "Pass 3 000.00 ms 000.0 M  ",
-            "Render 000.00 ms          ",
-            "Texture  0000 px 000.0 MB ",
-        );
-        std::array::from_fn(|i| TEXT.as_bytes()[i] as u32)
+            "Total  000.00 ms 000.0 M",
+            "Pass 1 000.00 ms 000.0 M",
+            "Pass 2 000.00 ms 000.0 M",
+            "Pass 3 000.00 ms 000.0 M",
+            "Render 000.00 ms",
+            "Texture  0000 px 000.0 MB",
+        ])
+    }
+
+    fn pack_text_grid<const COLS: usize, const ROWS: usize, const SIZE: usize>(
+        lines: &[impl AsRef<str>],
+    ) -> [u32; SIZE] {
+        let mut grid = [b' ' as u32; SIZE];
+        for (row, line) in lines.iter().take(ROWS).enumerate() {
+            for (col, byte) in line.as_ref().bytes().take(COLS).enumerate() {
+                grid[row * COLS + col] = if (32..=126).contains(&byte) { byte as u32 } else { b'?' as u32 };
+            }
+        }
+        grid
     }
 
     fn data_texture_size(screen_height: u32, scale: f32) -> u32 {
@@ -93,10 +112,11 @@ const perf_graph_height = {}u;
         let indirect = renderer.create_buffer(3 * U32_SIZE, BufferUsages::STORAGE | BufferUsages::INDIRECT);
         let data = renderer.create_buffer(data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let font = renderer.create_buffer(FONT_DATA_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
-        let text = renderer.create_buffer(PERF_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
+        let perf_text = renderer.create_buffer(PERF_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let graph = renderer.create_buffer(PERF_GRAPH_SIZE, BufferUsages::STORAGE);
+        let ctrl_text = renderer.create_buffer(CTRL_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         renderer.update_buffer(font, cast_slice(&FONT_ROWS));
-        renderer.update_buffer(text, cast_slice(&Self::perf_text_grid()));
+        renderer.update_buffer(perf_text, cast_slice(&Self::perf_text_grid()));
 
         renderer.add_clear_pass(data);
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
@@ -112,15 +132,23 @@ const perf_graph_height = {}u;
         let bind = [(0, uniform), (2, frameinfo), (4, data)];
         renderer.add_compute_pass_indirect(shader, "dejong", indirect, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
-        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (6, filter), (8, text), (9, graph)];
+        let bind = [(0, uniform), (1, timestamp), (2, frameinfo), (6, filter), (8, perf_text), (9, graph)];
         renderer.add_compute_pass(shader, "pass_3_timing", 1, &bind, None);
-        let bind = [(0, uniform), (2, frameinfo), (5, data), (7, font), (8, text), (9, graph)];
+        let bind = [(0, uniform), (2, frameinfo), (5, data), (7, font), (8, perf_text), (9, graph), (10, ctrl_text)];
         renderer.add_render_pass(shader, "dejong_vs", "dejong_fs", 3, &bind, Some(tsquery));
         renderer.add_resolve_query(tsquery, timestamp);
         let bind = [(1, timestamp), (2, frameinfo)];
         renderer.add_compute_pass(shader, "render_timing", 1, &bind, None);
 
-        Self { renderer, params, uniform_id: uniform, data_id: data, screen_size, frame_index: 0 }
+        Self {
+            renderer,
+            params,
+            uniform_id: uniform,
+            data_id: data,
+            ctrl_text_id: ctrl_text,
+            screen_size,
+            frame_index: 0,
+        }
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -140,6 +168,10 @@ const perf_graph_height = {}u;
             self.renderer.timestamp_res(),
             self.screen_size.into(),
         );
+        let ctrl_text_grid = Self::pack_text_grid::<CTRL_TEXT_COLS, CTRL_TEXT_ROWS, { CTRL_TEXT_COLS * CTRL_TEXT_ROWS }>(
+            &self.params.ctrl_overlay_lines(),
+        );
+        self.renderer.update_buffer(self.ctrl_text_id, cast_slice(&ctrl_text_grid));
         self.renderer.update_buffer(self.uniform_id, bytes_of(&uniform_data));
         self.renderer.render();
     }

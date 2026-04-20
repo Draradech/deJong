@@ -47,8 +47,9 @@ struct frame_info_t {
 @group(0) @binding(5) var<storage> counts_ro: array<array<u32, 3>>;
 @group(0) @binding(6) var<storage, read_write> filter_values: array<f32>;
 @group(0) @binding(7) var<storage> font: array<u32>;
-@group(0) @binding(8) var<storage, read_write> text: array<u32>;
+@group(0) @binding(8) var<storage, read_write> perf_text: array<u32>;
 @group(0) @binding(9) var<storage, read_write> graph: array<u32>;
+@group(0) @binding(10) var<storage> ctrl_text: array<u32>;
 
 const workgroup_size = 256u;
 const prerun_count = 32u;
@@ -175,11 +176,13 @@ fn dejong_vs(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4f {
 fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
   var col = sample_dejong(pos.xy);
+  col = mix(col, vec3f(0.01), overlay_alpha(vec2u(pos.xy), ctrl_overlay_pos(), ctrl_overlay_size));
+  col = mix(col, vec3f(1.0), ctrl_overlay_text(vec2u(pos.xy)));
   if uni.debug_overlay > 0.5 {
-    col = mix(col, vec3f(0.01), overlay_alpha(vec2u(pos.xy)));
-    let graph_col = overlay_graph(vec2u(pos.xy));
+    col = mix(col, vec3f(0.01), overlay_alpha(vec2u(pos.xy), perf_overlay_pos(), perf_overlay_size));
+    let graph_col = perf_overlay_graph(vec2u(pos.xy));
     col = mix(col, graph_col.rgb, graph_col.a);
-    col = mix(col, vec3f(1.0), overlay_text(vec2u(pos.xy)));
+    col = mix(col, vec3f(1.0), perf_overlay_text(vec2u(pos.xy)));
   }
   return vec4f(col, 1.0);
 }
@@ -213,44 +216,68 @@ const overlay_margin = vec2u(8);
 const overlay_padding = vec2u(8);
 const glyph_size = vec2u(font_width, font_height) * text_scale;
 const stride = glyph_size + vec2u(0, glyph_size.y / 2);
-const text_height = stride.y * perf_text_rows - (stride.y - glyph_size.y);
-const graph_offset = vec2u(0, text_height + overlay_padding.y) + overlay_padding;
-const overlay_size = vec2u(perf_graph_width, text_height + overlay_padding.y + perf_graph_height) + overlay_padding * 2;
+const perf_text_height = stride.y * perf_text_rows - (stride.y - glyph_size.y);
+const perf_graph_offset = vec2u(0, perf_text_height + overlay_padding.y) + overlay_padding;
+const perf_overlay_size = vec2u(perf_graph_width, perf_text_height + overlay_padding.y + perf_graph_height) + overlay_padding * 2;
+const ctrl_text_height = stride.y * ctrl_text_rows - (stride.y - glyph_size.y);
+const ctrl_overlay_size = vec2u(stride.x * ctrl_text_cols, ctrl_text_height) + overlay_padding * 2;
 
-fn overlay_pos() -> vec2u {
-  return vec2u(u32(uni.screen_width) - overlay_size.x - overlay_margin.x, overlay_margin.y);
+fn perf_overlay_pos() -> vec2u {
+  return vec2u(u32(uni.screen_width) - perf_overlay_size.x - overlay_margin.x, overlay_margin.y);
 }
 
-fn overlay_alpha(pos: vec2u) -> f32 {
-  let rel = pos - overlay_pos();
+fn ctrl_overlay_pos() -> vec2u {
+  return overlay_margin;
+}
+
+fn overlay_alpha(pos: vec2u, overlay_pos: vec2u, overlay_size: vec2u) -> f32 {
+  let rel = pos - overlay_pos;
   if any(rel < vec2u(0)) || any(rel >= overlay_size) {
     return 0.0;
   }
   return 0.95;
 }
 
-fn overlay_text(pos: vec2u) -> f32 {
-
-  let rel = pos - overlay_pos() - overlay_padding;
+fn overlay_glyph_ref(pos: vec2u, overlay_pos: vec2u, cols: u32, rows: u32) -> vec3u {
+  let rel = pos - overlay_pos - overlay_padding;
   let cell = rel / stride;
-  if cell.x >= perf_text_cols || cell.y >= perf_text_rows {
-    return 0.0;
+  if cell.x >= cols || cell.y >= rows {
+    return vec3u(0xffffffffu);
   }
 
   let local = rel - cell * stride;
   if any(local >= glyph_size) {
-    return 0.0;
+    return vec3u(0xffffffffu);
   }
 
-  let ch = text[cell.y * perf_text_cols + cell.x];
   let px = local / text_scale;
+  return vec3u(px, cell.y * cols + cell.x);
+}
+
+fn glyph_alpha(ch: u32, px: vec2u) -> f32 {
   let row = font[(ch - font_first) * font_height + px.y];
 
   return select(0.0, 1.0, (row & (1u << px.x)) != 0u);
 }
 
-fn overlay_graph(pos: vec2u) -> vec4f {
-  let rel = pos - overlay_pos() - graph_offset;
+fn perf_overlay_text(pos: vec2u) -> f32 {
+  let glyph_ref = overlay_glyph_ref(pos, perf_overlay_pos(), perf_text_cols, perf_text_rows);
+  if glyph_ref.z == 0xffffffffu {
+    return 0.0;
+  }
+  return glyph_alpha(perf_text[glyph_ref.z], glyph_ref.xy);
+}
+
+fn ctrl_overlay_text(pos: vec2u) -> f32 {
+  let glyph_ref = overlay_glyph_ref(pos, ctrl_overlay_pos(), ctrl_text_cols, ctrl_text_rows);
+  if glyph_ref.z == 0xffffffffu {
+    return 0.0;
+  }
+  return glyph_alpha(ctrl_text[glyph_ref.z], glyph_ref.xy);
+}
+
+fn perf_overlay_graph(pos: vec2u) -> vec4f {
+  let rel = pos - perf_overlay_pos() - perf_graph_offset;
   if any(rel >= vec2u(perf_graph_width, perf_graph_height)) {
     return vec4f(0.0);
   }
@@ -277,7 +304,7 @@ fn pow10(n: u32) -> u32 {
 fn write_uint(offset: u32, value: u32, digits: u32) {
   var v = value;
   for (var i = 0u; i < digits; i++) {
-    text[offset + digits - i - 1u] = 48u + v % 10u;
+    perf_text[offset + digits - i - 1u] = 48u + v % 10u;
     v /= 10u;
   }
 }
@@ -287,13 +314,13 @@ fn write_number(offset: u32, value: f32, digits_base: u32, digits_fract: u32) {
   let scaled = u32(max(value, 0.0) * f32(scale) + 0.5);
   write_uint(offset, scaled / scale, digits_base);
   for (var i = 0u; i + 1u < digits_base; i++) {
-    if text[offset + i] != 48u {
+    if perf_text[offset + i] != 48u {
       break;
     }
-    text[offset + i] = 32u;
+    perf_text[offset + i] = 32u;
   }
   if digits_fract > 0u {
-    text[offset + digits_base] = 46u;
+    perf_text[offset + digits_base] = 46u;
     write_uint(offset + digits_base + 1u, scaled % scale, digits_fract);
   }
 }
