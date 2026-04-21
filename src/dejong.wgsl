@@ -155,7 +155,8 @@ fn dejong(@builtin(global_invocation_id) id: vec3u) {
       sin(uni.a * p1.y) - cos(uni.b * p1.x),
       sin(uni.c * p1.x) - cos(uni.d * p1.y),
     );
-    let texel = vec2u(p2 * 0.25 * uni.texture_size * 0.96 + uni.texture_size * 0.5);
+    let aa_jitter = pcg3df(vec3u(id.x, i, frame_info.current_pass));
+    let texel = vec2u(p2 * 0.25 * uni.texture_size * 0.96 + uni.texture_size * 0.5 + aa_jitter.xy - vec2f(0.5));
     let index = texel.y * u32(uni.texture_size) + texel.x;
     let delta = p2 - p1;
     atomicAdd(&counts[index][0], u32(256.0 * abs(delta.x)));

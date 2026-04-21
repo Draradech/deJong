@@ -7,7 +7,7 @@ use wgpu::BufferUsages;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::font::{FONT_FIRST, FONT_HEIGHT, FONT_ROWS, FONT_WIDTH};
+use crate::font::{FONT_FIRST, FONT_HEIGHT, FONT_LAST, FONT_ROWS, FONT_WIDTH};
 use crate::params::{Params, UniformData};
 use crate::renderer::{BufferId, Renderer};
 
@@ -75,13 +75,20 @@ const ctrl_text_rows = {}u;
         ])
     }
 
+    fn pack_char(byte: u8) -> u32 {
+        match byte {
+            b if (FONT_FIRST as u8..=FONT_LAST as u8).contains(&b) => b as u32,
+            _ => b'?' as u32,
+        }
+    }
+
     fn pack_text_grid<const COLS: usize, const ROWS: usize, const SIZE: usize>(
         lines: &[impl AsRef<str>],
     ) -> [u32; SIZE] {
         let mut grid = [b' ' as u32; SIZE];
-        for (row, line) in lines.iter().take(ROWS).enumerate() {
-            for (col, byte) in line.as_ref().bytes().take(COLS).enumerate() {
-                grid[row * COLS + col] = if (32..=126).contains(&byte) { byte as u32 } else { b'?' as u32 };
+        for (row, line) in lines.iter().enumerate() {
+            for (col, byte) in line.as_ref().bytes().enumerate() {
+                grid[row * COLS + col] = Self::pack_char(byte);
             }
         }
         grid
