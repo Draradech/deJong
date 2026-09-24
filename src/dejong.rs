@@ -7,14 +7,15 @@ use wgpu::BufferUsages;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::font::{FONT_FIRST, FONT_HEIGHT, FONT_LAST, FONT_ROWS, FONT_WIDTH};
+use crate::font::{FONT_FIRST, FONT_HEIGHT, FONT_LAST, FONT_PIXELS, FONT_WIDTH};
 use crate::params::{Params, UniformData};
 use crate::renderer::{BufferId, Renderer};
 
 const U32_SIZE: u64 = size_of::<u32>() as u64;
 const UNIFORM_DATA_SIZE: u64 = size_of::<UniformData>() as u64;
-const FONT_DATA_SIZE: u64 = size_of::<[u32; FONT_ROWS.len()]>() as u64;
-const TEXT_SCALE: usize = 2;
+const FONT_DATA_SIZE: u64 = size_of::<[u32; FONT_PIXELS.len()]>() as u64;
+const TEXT_SCALE: usize = 1;
+const TEXT_ROW_GAP: usize = 4;
 const PERF_TEXT_COLS: usize = 26;
 const PERF_TEXT_ROWS: usize = 7;
 const PERF_TEXT_GRID_SIZE: u64 = size_of::<[u32; PERF_TEXT_COLS * PERF_TEXT_ROWS]>() as u64;
@@ -43,6 +44,7 @@ const font_first = {}u;
 const font_width = {}u;
 const font_height = {}u;
 const text_scale = {}u;
+const text_row_gap = {}u;
 const perf_text_cols = {}u;
 const perf_text_rows = {}u;
 const perf_graph_width = {}u;
@@ -54,6 +56,7 @@ const ctrl_text_rows = {}u;
             FONT_WIDTH,
             FONT_HEIGHT,
             TEXT_SCALE,
+            TEXT_ROW_GAP,
             PERF_TEXT_COLS,
             PERF_TEXT_ROWS,
             PERF_GRAPH_WIDTH,
@@ -122,7 +125,7 @@ const ctrl_text_rows = {}u;
         let perf_text = renderer.create_buffer(PERF_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let graph = renderer.create_buffer(PERF_GRAPH_SIZE, BufferUsages::STORAGE);
         let ctrl_text = renderer.create_buffer(CTRL_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
-        renderer.update_buffer(font, cast_slice(&FONT_ROWS));
+        renderer.update_buffer(font, cast_slice(&FONT_PIXELS));
         renderer.update_buffer(perf_text, cast_slice(&Self::perf_text_grid()));
 
         renderer.add_clear_pass(data);

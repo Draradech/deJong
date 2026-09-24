@@ -216,7 +216,7 @@ fn dejong_color(texel: vec2u) -> vec3f {
 const overlay_margin = vec2u(8);
 const overlay_padding = vec2u(8);
 const glyph_size = vec2u(font_width, font_height) * text_scale;
-const stride = glyph_size + vec2u(0, glyph_size.y / 2);
+const stride = glyph_size + vec2u(0u, text_row_gap);
 const perf_text_height = stride.y * perf_text_rows - (stride.y - glyph_size.y);
 const perf_graph_offset = vec2u(0, perf_text_height + overlay_padding.y) + overlay_padding;
 const perf_overlay_size = vec2u(perf_graph_width, perf_text_height + overlay_padding.y + perf_graph_height) + overlay_padding * 2;
@@ -256,9 +256,10 @@ fn overlay_glyph_ref(pos: vec2u, overlay_pos: vec2u, cols: u32, rows: u32) -> ve
 }
 
 fn glyph_alpha(ch: u32, px: vec2u) -> f32 {
-  let row = font[(ch - font_first) * font_height + px.y];
-
-  return select(0.0, 1.0, (row & (1u << px.x)) != 0u);
+  let pixel = (ch - font_first) * font_width * font_height + px.y * font_width + px.x;
+  let word = font[pixel / 4u];
+  let coverage = (word >> ((pixel % 4u) * 8u)) & 255u;
+  return f32(coverage) / 255.0;
 }
 
 fn perf_overlay_text(pos: vec2u) -> f32 {
