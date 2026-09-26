@@ -53,7 +53,6 @@ impl ApplicationHandler for App {
         println!(
             "controls: C control box, D debug, F fullscreen, Up/Down select, Left/Right adjust, Space toggle, Esc quit"
         );
-        println!("startup: {}", dejong.params.describe());
         window.request_redraw();
         *self = App::Live(Box::new(LiveApp { window, dejong }));
     }

@@ -193,7 +193,7 @@ fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 
 fn sample_dejong(pos: vec2f) -> vec3f {
   let display_size = uni.screen_height;
-  var px = pos - vec2f((uni.screen_width - display_size) * 0.5, 0.0);
+  let px = pos - vec2f((uni.screen_width - display_size) * 0.5, 0.0);
   let sample = px * uni.texture_size / display_size - 0.5;
   let base = vec2i(floor(sample));
   let frac = fract(sample);
@@ -235,8 +235,7 @@ fn ctrl_overlay_pos() -> vec2u {
 }
 
 fn overlay_alpha(pos: vec2u, overlay_pos: vec2u, overlay_size: vec2u) -> f32 {
-  let rel = pos - overlay_pos;
-  if any(rel < vec2u(0)) || any(rel >= overlay_size) {
+  if any(pos < overlay_pos) || any(pos >= overlay_pos + overlay_size) {
     return 0.0;
   }
   return 0.95;
@@ -399,7 +398,9 @@ fn update_overlay_values() {
 }
 
 fn draw_graph_points() {
-  draw_graph_log_point(6u, f32(frame_info.total_points), 1e5, 1e9);
+  let points = clamp(f32(frame_info.total_points), 1e5, 1e9);
+  let logv = (log2(points) - log2(1e5)) / (log2(1e9) - log2(1e5));
+  draw_graph_point(6u, logv);
   draw_graph_point(2u, ticks_ms(frame_info.render_end, frame_info.prev_pass_1_start) / 20.0);
   draw_graph_point(3u, ticks_ms(frame_info.pass_1_end, frame_info.pass_1_start) / 20.0);
   draw_graph_point(4u, ticks_ms(frame_info.pass_2_end, frame_info.pass_2_start) / 20.0);
@@ -408,11 +409,6 @@ fn draw_graph_points() {
   frame_info.graph_col = (frame_info.graph_col + 1u) % perf_graph_width;
 }
 
-fn draw_graph_log_point(graph_id: u32, value: f32, minv: f32, maxv: f32) {
-  let logv = (log2(clamp(value, minv, maxv)) - log2(minv)) / (log2(maxv) - log2(minv));
-  draw_graph_point(graph_id, logv);
-}
-  
 fn draw_graph_point(graph_id: u32, yf: f32) {
   let y = min(u32(yf * f32(perf_graph_height)), perf_graph_height - 2u);
   graph[(perf_graph_height - y - 1u) * perf_graph_width + frame_info.graph_col] = graph_id;

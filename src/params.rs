@@ -124,20 +124,6 @@ impl Params {
         if self.coefficient_auto[index] { self.coefficient_from_t(index) } else { self.coefficients[index] }
     }
 
-    fn toggle(&mut self, control: Control) {
-        match control {
-            Control::T => self.paused = !self.paused,
-            _ => {
-                if let Some(index) = control.coefficient_index() {
-                    if self.coefficient_auto[index] {
-                        self.coefficients[index] = self.coefficient_from_t(index);
-                    }
-                    self.coefficient_auto[index] = !self.coefficient_auto[index];
-                }
-            }
-        }
-    }
-
     pub fn toggle_debug_overlay(&mut self) {
         self.debug_overlay = !self.debug_overlay;
     }
@@ -151,25 +137,23 @@ impl Params {
     }
 
     pub fn toggle_selected(&mut self) {
-        self.toggle(Control::ALL[self.selected_control]);
+        match Control::ALL[self.selected_control] {
+            Control::T => self.paused = !self.paused,
+            control => {
+                if let Some(index) = control.coefficient_index() {
+                    if self.coefficient_auto[index] {
+                        self.coefficients[index] = self.coefficient_from_t(index);
+                    }
+                    self.coefficient_auto[index] = !self.coefficient_auto[index];
+                }
+            }
+        }
     }
 
     pub fn adjust_selected(&mut self, direction: i32) -> bool {
         let previous_scale = self.scale;
-        self.adjust(Control::ALL[self.selected_control], direction);
-        self.scale != previous_scale
-    }
-
-    fn adjust_logarithmic(value: f32, direction: i32, min: f32, max: f32) -> f32 {
-        let current = (value.clamp(min, max).log10() * LOG_STEPS_PER_DECADE).round() as i32;
-        let min_step = (min.log10() * LOG_STEPS_PER_DECADE).round() as i32;
-        let max_step = (max.log10() * LOG_STEPS_PER_DECADE).round() as i32;
-        10.0_f32.powf((current + direction).clamp(min_step, max_step) as f32 / LOG_STEPS_PER_DECADE)
-    }
-
-    fn adjust(&mut self, control: Control, direction: i32) {
         let delta = direction as f32 * self.step;
-        match control {
+        match Control::ALL[self.selected_control] {
             Control::Speed => {
                 self.speed = Self::adjust_logarithmic(self.speed, direction, MIN_SPEED_PERCENT, MAX_SPEED_PERCENT);
             }
@@ -184,7 +168,7 @@ impl Params {
             Control::Brightness => self.brightness = (self.brightness + delta).clamp(0.0, 10000.0),
             Control::Gamma => self.gamma = (self.gamma + delta).clamp(0.01, 10.0),
             Control::Budget => self.budget = (self.budget + delta).clamp(MIN_BUDGET_MS, MAX_BUDGET_MS),
-            _ => {
+            control => {
                 if let Some(index) = control.coefficient_index() {
                     if self.coefficient_auto[index] {
                         self.coefficients[index] = self.coefficient_from_t(index);
@@ -194,6 +178,14 @@ impl Params {
                 }
             }
         }
+        self.scale != previous_scale
+    }
+
+    fn adjust_logarithmic(value: f32, direction: i32, min: f32, max: f32) -> f32 {
+        let current = (value.clamp(min, max).log10() * LOG_STEPS_PER_DECADE).round() as i32;
+        let min_step = (min.log10() * LOG_STEPS_PER_DECADE).round() as i32;
+        let max_step = (max.log10() * LOG_STEPS_PER_DECADE).round() as i32;
+        10.0_f32.powf((current + direction).clamp(min_step, max_step) as f32 / LOG_STEPS_PER_DECADE)
     }
 
     pub fn advance_t(&mut self) {
@@ -254,13 +246,6 @@ impl Params {
                 }
             })
             .collect()
-    }
-
-    pub fn describe(&self) -> String {
-        format!(
-            "scale={:.0}% bright={:.0}% gamma={:.2} budget={:.2}ms",
-            self.scale, self.brightness, self.gamma, self.budget
-        )
     }
 }
 

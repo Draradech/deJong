@@ -13,7 +13,7 @@ use crate::renderer::{BufferId, Renderer};
 
 const U32_SIZE: u64 = size_of::<u32>() as u64;
 const UNIFORM_DATA_SIZE: u64 = size_of::<UniformData>() as u64;
-const FONT_DATA_SIZE: u64 = size_of::<[u32; FONT_PIXELS.len()]>() as u64;
+const FONT_DATA_SIZE: u64 = FONT_PIXELS.len() as u64;
 const TEXT_SCALE: usize = 1;
 const TEXT_ROW_GAP: usize = 4;
 const PERF_TEXT_COLS: usize = 26;
@@ -67,7 +67,7 @@ const ctrl_text_rows = {}u;
     }
 
     fn perf_text_grid() -> [u32; PERF_TEXT_COLS * PERF_TEXT_ROWS] {
-        Self::pack_text_grid::<PERF_TEXT_COLS, PERF_TEXT_ROWS, { PERF_TEXT_COLS * PERF_TEXT_ROWS }>(&[
+        Self::pack_text_grid::<PERF_TEXT_COLS, { PERF_TEXT_COLS * PERF_TEXT_ROWS }>(&[
             "Frame  000.00 ms 000.0 fps",
             "Total  000.00 ms 000.0 M",
             "Pass 1 000.00 ms 000.0 M",
@@ -85,9 +85,7 @@ const ctrl_text_rows = {}u;
         }
     }
 
-    fn pack_text_grid<const COLS: usize, const ROWS: usize, const SIZE: usize>(
-        lines: &[impl AsRef<str>],
-    ) -> [u32; SIZE] {
+    fn pack_text_grid<const COLS: usize, const SIZE: usize>(lines: &[impl AsRef<str>]) -> [u32; SIZE] {
         let mut grid = [b' ' as u32; SIZE];
         for (row, line) in lines.iter().enumerate() {
             for (col, byte) in line.as_ref().bytes().enumerate() {
@@ -125,7 +123,7 @@ const ctrl_text_rows = {}u;
         let perf_text = renderer.create_buffer(PERF_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
         let graph = renderer.create_buffer(PERF_GRAPH_SIZE, BufferUsages::STORAGE);
         let ctrl_text = renderer.create_buffer(CTRL_TEXT_GRID_SIZE, BufferUsages::STORAGE | BufferUsages::COPY_DST);
-        renderer.update_buffer(font, cast_slice(&FONT_PIXELS));
+        renderer.update_buffer(font, FONT_PIXELS);
         renderer.update_buffer(perf_text, cast_slice(&Self::perf_text_grid()));
 
         renderer.add_clear_pass(data);
@@ -182,7 +180,7 @@ const ctrl_text_rows = {}u;
             self.renderer.timestamp_res(),
             self.screen_size.into(),
         );
-        let ctrl_text_grid = Self::pack_text_grid::<CTRL_TEXT_COLS, CTRL_TEXT_ROWS, { CTRL_TEXT_COLS * CTRL_TEXT_ROWS }>(
+        let ctrl_text_grid = Self::pack_text_grid::<CTRL_TEXT_COLS, { CTRL_TEXT_COLS * CTRL_TEXT_ROWS }>(
             &self.params.ctrl_overlay_lines(),
         );
         self.renderer.update_buffer(self.ctrl_text_id, cast_slice(&ctrl_text_grid));
