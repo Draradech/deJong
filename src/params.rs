@@ -2,9 +2,8 @@ use bytemuck::{Pod, Zeroable};
 use clap::Parser;
 use rand::RngExt;
 
-const MIN_SPEED_PERCENT: f32 = 1.0;
-const MAX_SPEED_PERCENT: f32 = 10000.0;
-const LOG_STEPS_PER_DECADE: f32 = 5.0;
+const MIN_SPEED: f32 = 0.01;
+const MAX_SPEED: f32 = 100.0;
 const MIN_STEP: f32 = 0.001;
 const MAX_STEP: f32 = 1000.0;
 const MIN_BUDGET_MS: f32 = 0.5;
@@ -94,12 +93,12 @@ impl Default for Params {
     fn default() -> Self {
         Self {
             t: rand::rng().random_range(T_INIT_MARGIN..(T_PERIOD - T_INIT_MARGIN)),
-            speed: 100.0,
+            speed: 1.0,
             step: 1.0,
-            brightness: 100.0,
+            brightness: 1.0,
             budget: 15.0,
             gamma: 1.5,
-            scale: 100.0,
+            scale: 1.0,
             paused: false,
             coefficients: [0.0; 4],
             coefficient_auto: [true; 4],
@@ -155,7 +154,7 @@ impl Params {
         let delta = direction as f32 * self.step;
         match Control::ALL[self.selected_control] {
             Control::Speed => {
-                self.speed = Self::adjust_logarithmic(self.speed, direction, MIN_SPEED_PERCENT, MAX_SPEED_PERCENT);
+                self.speed = Self::adjust_logarithmic(self.speed, direction, MIN_SPEED, MAX_SPEED);
             }
             Control::Step => {
                 self.step = Self::adjust_logarithmic(self.step, direction, MIN_STEP, MAX_STEP);
@@ -164,8 +163,8 @@ impl Params {
                 self.paused = true;
                 self.t += delta as f64;
             }
-            Control::Scale => self.scale = (self.scale + delta).clamp(1.0, 200.0),
-            Control::Brightness => self.brightness = (self.brightness + delta).clamp(0.0, 10000.0),
+            Control::Scale => self.scale = (self.scale + delta).clamp(0.01, 2.0),
+            Control::Brightness => self.brightness = (self.brightness + delta).clamp(0.0, 100.0),
             Control::Gamma => self.gamma = (self.gamma + delta).clamp(0.01, 10.0),
             Control::Budget => self.budget = (self.budget + delta).clamp(MIN_BUDGET_MS, MAX_BUDGET_MS),
             control => {
@@ -182,15 +181,26 @@ impl Params {
     }
 
     fn adjust_logarithmic(value: f32, direction: i32, min: f32, max: f32) -> f32 {
-        let current = (value.clamp(min, max).log10() * LOG_STEPS_PER_DECADE).round() as i32;
-        let min_step = (min.log10() * LOG_STEPS_PER_DECADE).round() as i32;
-        let max_step = (max.log10() * LOG_STEPS_PER_DECADE).round() as i32;
-        10.0_f32.powf((current + direction).clamp(min_step, max_step) as f32 / LOG_STEPS_PER_DECADE)
+        let mut lower = min;
+        for decade in (min.log10().round() as i32)..=(max.log10().round() as i32) {
+            for factor in [1.0, 2.5, 5.0] {
+                let candidate = factor * 10.0_f32.powi(decade);
+                if candidate < min || candidate > max {
+                    continue;
+                }
+                if candidate < value * (1.0 - 1e-6) {
+                    lower = candidate;
+                } else if direction > 0 && candidate > value * (1.0 + 1e-6) {
+                    return candidate;
+                }
+            }
+        }
+        if direction < 0 { lower } else { max }
     }
 
     pub fn advance_t(&mut self) {
         if !self.paused {
-            self.t += 1e-6_f64 * self.speed as f64;
+            self.t += 1e-4_f64 * self.speed as f64;
         }
     }
 
@@ -208,7 +218,7 @@ impl Params {
             d: self.coefficient(3) as f32,
             frame: frame_index as f32,
             texture_size: texture_size as f32,
-            brightness: self.brightness * 4e-6,
+            brightness: self.brightness * 4e-4,
             budget: self.budget,
             timestamp_res,
             screen_width: screen_size.0 as f32,
@@ -225,24 +235,26 @@ impl Params {
             .enumerate()
             .map(|(index, control)| {
                 let marker = if index == self.selected_control { '>' } else { ' ' };
-                let numeric =
-                    |name: &str, value: f64, state: &str| format!("{} {:<7} {:>9.3} {:<6}", marker, name, value, state);
+                let numeric = |name: &str, value: f64| format!("{} {:<12}{value:>11.3}", marker, name);
                 match control {
-                    Control::Speed => format!("{} {:<7} {:>9.3}%", marker, "speed", self.speed),
-                    Control::Step => numeric("step", self.step as f64, ""),
-                    Control::T => numeric("t", self.t, if self.paused { "manual" } else { "auto" }),
+                    Control::Speed => numeric("speed", self.speed as f64),
+                    Control::Step => numeric("step", self.step as f64),
+                    Control::T => numeric(if self.paused { "t" } else { "t (auto)" }, self.t),
                     Control::A | Control::B | Control::C | Control::D => {
                         let coefficient_index = control.coefficient_index().unwrap();
                         numeric(
-                            ["a", "b", "c", "d"][coefficient_index],
+                            if self.coefficient_auto[coefficient_index] {
+                                ["a (auto)", "b (auto)", "c (auto)", "d (auto)"][coefficient_index]
+                            } else {
+                                ["a", "b", "c", "d"][coefficient_index]
+                            },
                             self.coefficient(coefficient_index),
-                            if self.coefficient_auto[coefficient_index] { "auto" } else { "manual" },
                         )
                     }
-                    Control::Scale => format!("{} {:<7} {:>9.3}%", marker, "scale", self.scale),
-                    Control::Brightness => format!("{} {:<10} {:>9.3}%", marker, "brightness", self.brightness),
-                    Control::Gamma => numeric("gamma", self.gamma as f64, ""),
-                    Control::Budget => format!("{} {:<7} {:>9.3}ms", marker, "budget", self.budget),
+                    Control::Scale => numeric("scale", self.scale as f64),
+                    Control::Brightness => numeric("brightness", self.brightness as f64),
+                    Control::Gamma => numeric("gamma", self.gamma as f64),
+                    Control::Budget => numeric("budget", self.budget as f64),
                 }
             })
             .collect()

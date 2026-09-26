@@ -96,7 +96,7 @@ const ctrl_text_rows = {}u;
     }
 
     fn data_texture_size(screen_height: u32, scale: f32) -> u32 {
-        (screen_height as f32 * scale * 0.01) as u32
+        (screen_height as f32 * scale) as u32
     }
 
     fn data_buffer_size(screen_height: u32, scale: f32) -> u64 {
