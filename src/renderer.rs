@@ -15,14 +15,10 @@ pub struct QueryId(usize);
 pub type BufferBinding = (u32, BufferId);
 
 enum Pass {
-    Clear(ClearPass),
+    Clear(BufferId),
     Compute(ComputePass),
     Render(RenderPass),
-    Resolve(ResolvePass),
-}
-
-struct ClearPass {
-    buffer: BufferId,
+    Resolve { query: QueryId, buffer: BufferId },
 }
 
 struct ComputePass {
@@ -40,11 +36,6 @@ struct RenderPass {
     bind_group: wgpu::BindGroup,
     vertices: u32,
     query: Option<QueryId>,
-}
-
-struct ResolvePass {
-    query: QueryId,
-    buffer: BufferId,
 }
 
 pub struct Renderer {
@@ -178,11 +169,11 @@ impl Renderer {
     }
 
     pub fn add_clear_pass(&mut self, buffer: BufferId) {
-        self.passes.push(Pass::Clear(ClearPass { buffer }));
+        self.passes.push(Pass::Clear(buffer));
     }
 
     pub fn add_resolve_query(&mut self, query: QueryId, buffer: BufferId) {
-        self.passes.push(Pass::Resolve(ResolvePass { query, buffer }));
+        self.passes.push(Pass::Resolve { query, buffer });
     }
 
     pub fn add_compute_pass(
@@ -328,14 +319,6 @@ impl Renderer {
         })
     }
 
-    fn encode_clear_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: &ClearPass) {
-        encoder.clear_buffer(&self.buffers[pass.buffer.0], 0, None);
-    }
-
-    fn encode_resolve_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: &ResolvePass) {
-        encoder.resolve_query_set(&self.queries[pass.query.0], 0..2, &self.buffers[pass.buffer.0], 0);
-    }
-
     pub fn render(&mut self) {
         let surface_texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -352,8 +335,10 @@ impl Renderer {
 
         for pass in &self.passes {
             match pass {
-                Pass::Clear(pass) => self.encode_clear_pass(&mut encoder, pass),
-                Pass::Resolve(pass) => self.encode_resolve_pass(&mut encoder, pass),
+                Pass::Clear(buffer) => encoder.clear_buffer(&self.buffers[buffer.0], 0, None),
+                Pass::Resolve { query, buffer } => {
+                    encoder.resolve_query_set(&self.queries[query.0], 0..2, &self.buffers[buffer.0], 0);
+                }
                 Pass::Compute(pass) => self.encode_compute_pass(&mut encoder, pass),
                 Pass::Render(pass) => self.encode_render_pass(&mut encoder, &surface_texture, pass),
             }
