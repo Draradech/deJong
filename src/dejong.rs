@@ -8,7 +8,7 @@ use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::font::{FONT_FIRST, FONT_HEIGHT, FONT_LAST, FONT_PIXELS, FONT_WIDTH};
-use crate::params::{Params, UniformData};
+use crate::params::{Control, Params, UniformData};
 use crate::renderer::{BufferId, Renderer};
 
 const U32_SIZE: u64 = size_of::<u32>() as u64;
@@ -23,7 +23,7 @@ const PERF_GRAPH_WIDTH: usize = PERF_TEXT_COLS * FONT_WIDTH as usize * TEXT_SCAL
 const PERF_GRAPH_HEIGHT: usize = 160;
 const PERF_GRAPH_SIZE: u64 = size_of::<[u32; PERF_GRAPH_WIDTH * PERF_GRAPH_HEIGHT]>() as u64;
 const CTRL_TEXT_COLS: usize = 26;
-const CTRL_TEXT_ROWS: usize = 12;
+const CTRL_TEXT_ROWS: usize = Control::ALL.len();
 const CTRL_TEXT_GRID_SIZE: u64 = size_of::<[u32; CTRL_TEXT_COLS * CTRL_TEXT_ROWS]>() as u64;
 
 pub struct Dejong {
@@ -164,6 +164,10 @@ const ctrl_text_rows = {}u;
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
         self.renderer.resize(size);
         self.screen_size = size;
+        self.resize_data_buffer();
+    }
+
+    pub fn resize_data_buffer(&mut self) {
         let data_size = Self::data_buffer_size(self.screen_size.height, self.params.scale);
         self.renderer.replace_buffer(self.data_id, data_size, BufferUsages::STORAGE | BufferUsages::COPY_DST);
     }

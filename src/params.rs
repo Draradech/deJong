@@ -4,7 +4,9 @@ use rand::RngExt;
 
 const MIN_SPEED_PERCENT: f32 = 1.0;
 const MAX_SPEED_PERCENT: f32 = 10000.0;
-const SPEED_STEPS_PER_DECADE: f32 = 5.0;
+const LOG_STEPS_PER_DECADE: f32 = 5.0;
+const MIN_STEP: f32 = 0.001;
+const MAX_STEP: f32 = 1000.0;
 const MIN_BUDGET_MS: f32 = 0.5;
 const MAX_BUDGET_MS: f32 = 100.0;
 const T_INIT_MARGIN: f64 = 50.0;
@@ -26,18 +28,66 @@ pub struct UniformData {
     pub screen_width: f32,
     pub screen_height: f32,
     pub debug_overlay: f32,
+    pub control_overlay: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Control {
+    Speed,
+    Step,
+    T,
+    A,
+    B,
+    C,
+    D,
+    Scale,
+    Brightness,
+    Gamma,
+    Budget,
+}
+
+impl Control {
+    pub const ALL: [Self; 11] = [
+        Self::Speed,
+        Self::Step,
+        Self::T,
+        Self::A,
+        Self::B,
+        Self::C,
+        Self::D,
+        Self::Scale,
+        Self::Brightness,
+        Self::Gamma,
+        Self::Budget,
+    ];
+
+    fn coefficient_index(self) -> Option<usize> {
+        match self {
+            Self::A => Some(0),
+            Self::B => Some(1),
+            Self::C => Some(2),
+            Self::D => Some(3),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Params {
-    pub t: f64,
-    pub speed: f32,
-    pub brightness: f32,
-    pub budget: f32,
-    pub gamma: f32,
+    t: f64,
+    speed: f32,
+    step: f32,
+    brightness: f32,
+    budget: f32,
+    gamma: f32,
     pub scale: f32,
-    pub paused: bool,
-    pub debug_overlay: bool,
+    paused: bool,
+    coefficients: [f64; 4],
+    coefficient_auto: [bool; 4],
+    debug_overlay: bool,
+    pub fullscreen: bool,
+    pub control_visible: bool,
+    selected_control: usize,
 }
 
 impl Default for Params {
@@ -45,12 +95,18 @@ impl Default for Params {
         Self {
             t: rand::rng().random_range(T_INIT_MARGIN..(T_PERIOD - T_INIT_MARGIN)),
             speed: 100.0,
+            step: 1.0,
             brightness: 100.0,
             budget: 15.0,
             gamma: 1.5,
             scale: 100.0,
             paused: false,
+            coefficients: [0.0; 4],
+            coefficient_auto: [true; 4],
             debug_overlay: false,
+            fullscreen: false,
+            control_visible: true,
+            selected_control: 0,
         }
     }
 }
@@ -60,25 +116,84 @@ impl Params {
         Cli::parse().into_params()
     }
 
-    pub fn toggle_pause(&mut self) {
-        self.paused = !self.paused;
+    fn coefficient_from_t(&self, index: usize) -> f64 {
+        4.0 * (self.t * [1.03, 1.07, 1.09, 1.13][index]).sin()
+    }
+
+    fn coefficient(&self, index: usize) -> f64 {
+        if self.coefficient_auto[index] { self.coefficient_from_t(index) } else { self.coefficients[index] }
+    }
+
+    fn toggle(&mut self, control: Control) {
+        match control {
+            Control::T => self.paused = !self.paused,
+            _ => {
+                if let Some(index) = control.coefficient_index() {
+                    if self.coefficient_auto[index] {
+                        self.coefficients[index] = self.coefficient_from_t(index);
+                    }
+                    self.coefficient_auto[index] = !self.coefficient_auto[index];
+                }
+            }
+        }
     }
 
     pub fn toggle_debug_overlay(&mut self) {
         self.debug_overlay = !self.debug_overlay;
     }
 
-    pub fn adjust_speed_step(&mut self, step_delta: i32) {
-        let current_step =
-            (self.speed.clamp(MIN_SPEED_PERCENT, MAX_SPEED_PERCENT).log10() * SPEED_STEPS_PER_DECADE).round() as i32;
-        let min_step = (MIN_SPEED_PERCENT.log10() * SPEED_STEPS_PER_DECADE).round() as i32;
-        let max_step = (MAX_SPEED_PERCENT.log10() * SPEED_STEPS_PER_DECADE).round() as i32;
-        let next_step = (current_step + step_delta).clamp(min_step, max_step);
-        self.speed = 10.0_f32.powf(next_step as f32 / SPEED_STEPS_PER_DECADE);
+    pub fn move_selection(&mut self, direction: i32) {
+        if direction < 0 {
+            self.selected_control = self.selected_control.saturating_sub(1);
+        } else {
+            self.selected_control = (self.selected_control + 1).min(Control::ALL.len() - 1);
+        }
     }
 
-    pub fn adjust_budget(&mut self, delta_ms: f32) {
-        self.budget = (self.budget + delta_ms).clamp(MIN_BUDGET_MS, MAX_BUDGET_MS);
+    pub fn toggle_selected(&mut self) {
+        self.toggle(Control::ALL[self.selected_control]);
+    }
+
+    pub fn adjust_selected(&mut self, direction: i32) -> bool {
+        let previous_scale = self.scale;
+        self.adjust(Control::ALL[self.selected_control], direction);
+        self.scale != previous_scale
+    }
+
+    fn adjust_logarithmic(value: f32, direction: i32, min: f32, max: f32) -> f32 {
+        let current = (value.clamp(min, max).log10() * LOG_STEPS_PER_DECADE).round() as i32;
+        let min_step = (min.log10() * LOG_STEPS_PER_DECADE).round() as i32;
+        let max_step = (max.log10() * LOG_STEPS_PER_DECADE).round() as i32;
+        10.0_f32.powf((current + direction).clamp(min_step, max_step) as f32 / LOG_STEPS_PER_DECADE)
+    }
+
+    fn adjust(&mut self, control: Control, direction: i32) {
+        let delta = direction as f32 * self.step;
+        match control {
+            Control::Speed => {
+                self.speed = Self::adjust_logarithmic(self.speed, direction, MIN_SPEED_PERCENT, MAX_SPEED_PERCENT);
+            }
+            Control::Step => {
+                self.step = Self::adjust_logarithmic(self.step, direction, MIN_STEP, MAX_STEP);
+            }
+            Control::T => {
+                self.paused = true;
+                self.t += delta as f64;
+            }
+            Control::Scale => self.scale = (self.scale + delta).clamp(1.0, 200.0),
+            Control::Brightness => self.brightness = (self.brightness + delta).clamp(0.0, 10000.0),
+            Control::Gamma => self.gamma = (self.gamma + delta).clamp(0.01, 10.0),
+            Control::Budget => self.budget = (self.budget + delta).clamp(MIN_BUDGET_MS, MAX_BUDGET_MS),
+            _ => {
+                if let Some(index) = control.coefficient_index() {
+                    if self.coefficient_auto[index] {
+                        self.coefficients[index] = self.coefficient_from_t(index);
+                        self.coefficient_auto[index] = false;
+                    }
+                    self.coefficients[index] += delta as f64;
+                }
+            }
+        }
     }
 
     pub fn advance_t(&mut self) {
@@ -94,12 +209,11 @@ impl Params {
         timestamp_res: f32,
         screen_size: (u32, u32),
     ) -> UniformData {
-        let t = self.t;
         UniformData {
-            a: (4.0_f64 * (t * 1.03_f64).sin()) as f32,
-            b: (4.0_f64 * (t * 1.07_f64).sin()) as f32,
-            c: (4.0_f64 * (t * 1.09_f64).sin()) as f32,
-            d: (4.0_f64 * (t * 1.13_f64).sin()) as f32,
+            a: self.coefficient(0) as f32,
+            b: self.coefficient(1) as f32,
+            c: self.coefficient(2) as f32,
+            d: self.coefficient(3) as f32,
             frame: frame_index as f32,
             texture_size: texture_size as f32,
             brightness: self.brightness * 4e-6,
@@ -108,22 +222,38 @@ impl Params {
             screen_width: screen_size.0 as f32,
             screen_height: screen_size.1 as f32,
             debug_overlay: if self.debug_overlay { 1.0 } else { 0.0 },
+            control_overlay: if self.control_visible { 1.0 } else { 0.0 },
             gamma: self.gamma,
         }
     }
 
     pub fn ctrl_overlay_lines(&self) -> Vec<String> {
-        let t = self.t;
-        vec![
-            format!("  speed   {:>7.1}%", self.speed),
-            format!("  t       {:>9.3}", self.t),
-            format!("  a       {:>9.3}", 4.0_f64 * (t * 1.03_f64).sin()),
-            format!("  b       {:>9.3}", 4.0_f64 * (t * 1.07_f64).sin()),
-            format!("  c       {:>9.3}", 4.0_f64 * (t * 1.09_f64).sin()),
-            format!("  d       {:>9.3}", 4.0_f64 * (t * 1.13_f64).sin()),
-            "  step        1.000".to_string(),
-            format!("  animate   {}", if self.paused { "off" } else { "on " }),
-        ]
+        Control::ALL
+            .iter()
+            .enumerate()
+            .map(|(index, control)| {
+                let marker = if index == self.selected_control { '>' } else { ' ' };
+                let numeric =
+                    |name: &str, value: f64, state: &str| format!("{} {:<7} {:>9.3} {:<6}", marker, name, value, state);
+                match control {
+                    Control::Speed => format!("{} {:<7} {:>9.3}%", marker, "speed", self.speed),
+                    Control::Step => numeric("step", self.step as f64, ""),
+                    Control::T => numeric("t", self.t, if self.paused { "manual" } else { "auto" }),
+                    Control::A | Control::B | Control::C | Control::D => {
+                        let coefficient_index = control.coefficient_index().unwrap();
+                        numeric(
+                            ["a", "b", "c", "d"][coefficient_index],
+                            self.coefficient(coefficient_index),
+                            if self.coefficient_auto[coefficient_index] { "auto" } else { "manual" },
+                        )
+                    }
+                    Control::Scale => format!("{} {:<7} {:>9.3}%", marker, "scale", self.scale),
+                    Control::Brightness => format!("{} {:<10} {:>9.3}%", marker, "brightness", self.brightness),
+                    Control::Gamma => numeric("gamma", self.gamma as f64, ""),
+                    Control::Budget => format!("{} {:<7} {:>9.3}ms", marker, "budget", self.budget),
+                }
+            })
+            .collect()
     }
 
     pub fn describe(&self) -> String {

@@ -12,6 +12,7 @@ struct uniform_t {
   screen_width: f32,
   screen_height: f32,
   debug_overlay: f32,
+  control_overlay: f32,
 };
 
 struct timestamp_t {
@@ -177,8 +178,10 @@ fn dejong_vs(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4f {
 fn dejong_fs(@builtin(position) pos : vec4f) -> @location(0) vec4f
 {
   var col = sample_dejong(pos.xy);
-  col = mix(col, vec3f(0.01), overlay_alpha(vec2u(pos.xy), ctrl_overlay_pos(), ctrl_overlay_size));
-  col = mix(col, vec3f(1.0), ctrl_overlay_text(vec2u(pos.xy)));
+  if uni.control_overlay > 0.5 {
+    col = mix(col, vec3f(0.01), overlay_alpha(vec2u(pos.xy), ctrl_overlay_pos(), ctrl_overlay_size));
+    col = mix(col, vec3f(1.0), ctrl_overlay_text(vec2u(pos.xy)));
+  }
   if uni.debug_overlay > 0.5 {
     col = mix(col, vec3f(0.01), overlay_alpha(vec2u(pos.xy), perf_overlay_pos(), perf_overlay_size));
     let graph_col = perf_overlay_graph(vec2u(pos.xy));

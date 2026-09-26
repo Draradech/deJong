@@ -21,7 +21,6 @@ pub struct EarlyApp {
 pub struct LiveApp {
     window: Arc<Window>,
     dejong: Dejong,
-    fullscreen: bool,
 }
 
 impl App {
@@ -32,12 +31,12 @@ impl App {
 
 impl LiveApp {
     fn toggle_fullscreen(&mut self) {
-        if self.fullscreen {
+        if self.dejong.params.fullscreen {
             self.window.set_fullscreen(None);
         } else {
             self.window.set_fullscreen(Some(Fullscreen::Borderless(self.window.current_monitor())));
         }
-        self.fullscreen = !self.fullscreen;
+        self.dejong.params.fullscreen = !self.dejong.params.fullscreen;
     }
 }
 
@@ -51,10 +50,12 @@ impl ApplicationHandler for App {
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
         let window = Arc::new(event_loop.create_window(attributes).expect("failed to create window"));
         let dejong = pollster::block_on(Dejong::new(early.startup_params.clone(), window.clone()));
-        println!("controls: D debug, F fullscreen, Esc quit, Up/Down speed, Left/Right budget, P pause");
+        println!(
+            "controls: C control box, D debug, F fullscreen, Up/Down select, Left/Right adjust, Space toggle, Esc quit"
+        );
         println!("startup: {}", dejong.params.describe());
         window.request_redraw();
-        *self = App::Live(Box::new(LiveApp { window, dejong, fullscreen: false }));
+        *self = App::Live(Box::new(LiveApp { window, dejong }));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
@@ -74,16 +75,35 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::Escape) => event_loop.exit(),
-                    PhysicalKey::Code(KeyCode::KeyD) => app.dejong.params.toggle_debug_overlay(),
-                    PhysicalKey::Code(KeyCode::KeyF) => app.toggle_fullscreen(),
-                    PhysicalKey::Code(KeyCode::KeyP) => app.dejong.params.toggle_pause(),
-                    PhysicalKey::Code(KeyCode::ArrowUp) => app.dejong.params.adjust_speed_step(1),
-                    PhysicalKey::Code(KeyCode::ArrowDown) => app.dejong.params.adjust_speed_step(-1),
-                    PhysicalKey::Code(KeyCode::ArrowLeft) => app.dejong.params.adjust_budget(-0.5),
-                    PhysicalKey::Code(KeyCode::ArrowRight) => app.dejong.params.adjust_budget(0.5),
+                    PhysicalKey::Code(KeyCode::KeyC) if !event.repeat => {
+                        app.dejong.params.control_visible = !app.dejong.params.control_visible;
+                    }
+                    PhysicalKey::Code(KeyCode::KeyD) if !event.repeat => {
+                        app.dejong.params.toggle_debug_overlay();
+                    }
+                    PhysicalKey::Code(KeyCode::KeyF) if !event.repeat => {
+                        app.toggle_fullscreen();
+                    }
+                    PhysicalKey::Code(KeyCode::ArrowUp) if app.dejong.params.control_visible => {
+                        app.dejong.params.move_selection(-1);
+                    }
+                    PhysicalKey::Code(KeyCode::ArrowDown) if app.dejong.params.control_visible => {
+                        app.dejong.params.move_selection(1);
+                    }
+                    PhysicalKey::Code(KeyCode::ArrowLeft | KeyCode::ArrowRight)
+                        if app.dejong.params.control_visible =>
+                    {
+                        let direction =
+                            if event.physical_key == PhysicalKey::Code(KeyCode::ArrowRight) { 1 } else { -1 };
+                        if app.dejong.params.adjust_selected(direction) {
+                            app.dejong.resize_data_buffer();
+                        }
+                    }
+                    PhysicalKey::Code(KeyCode::Space) if app.dejong.params.control_visible && !event.repeat => {
+                        app.dejong.params.toggle_selected();
+                    }
                     _ => {}
                 }
-                println!("params: {}", app.dejong.params.describe());
             }
             _ => {}
         }
