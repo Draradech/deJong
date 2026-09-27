@@ -51,7 +51,7 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(attributes).expect("failed to create window"));
         let dejong = pollster::block_on(Dejong::new(early.startup_params.clone(), window.clone()));
         println!(
-            "controls: C control box, D debug, F fullscreen, Up/Down select, Left/Right adjust, Space toggle, Esc quit"
+            "controls: C control box, D debug, F fullscreen, Up/Down select, Left/Right adjust, Space toggle, R reset, Esc quit"
         );
         window.request_redraw();
         *self = App::Live(Box::new(LiveApp { window, dejong }));
@@ -100,6 +100,9 @@ impl ApplicationHandler for App {
                     }
                     PhysicalKey::Code(KeyCode::Space) if app.dejong.params.control_visible && !event.repeat => {
                         app.dejong.params.toggle_selected();
+                    }
+                    PhysicalKey::Code(KeyCode::KeyR) if app.dejong.params.control_visible && !event.repeat => {
+                        app.dejong.params.reset_selected();
                     }
                     _ => {}
                 }

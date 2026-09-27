@@ -4,8 +4,14 @@ use rand::RngExt;
 
 const MIN_SPEED: f32 = 0.01;
 const MAX_SPEED: f32 = 100.0;
-const MIN_STEP: f32 = 0.001;
+const MIN_STEP: f32 = 0.0001;
 const MAX_STEP: f32 = 1000.0;
+const MIN_SCALE: f32 = 0.01;
+const MAX_SCALE: f32 = 2.0;
+const MIN_BRIGHTNESS: f32 = 0.05;
+const MAX_BRIGHTNESS: f32 = 100.0;
+const MIN_GAMMA: f32 = 0.01;
+const MAX_GAMMA: f32 = 10.0;
 const MIN_BUDGET_MS: f32 = 0.5;
 const MAX_BUDGET_MS: f32 = 100.0;
 const T_INIT_MARGIN: f64 = 50.0;
@@ -149,6 +155,22 @@ impl Params {
         }
     }
 
+    pub fn reset_selected(&mut self) {
+        let control = Control::ALL[self.selected_control];
+        match control {
+            Control::T => {
+                self.t = 0.0;
+                self.paused = true;
+            }
+            Control::A | Control::B | Control::C | Control::D => {
+                let index = control.coefficient_index().unwrap();
+                self.coefficients[index] = 0.0;
+                self.coefficient_auto[index] = false;
+            }
+            _ => {}
+        }
+    }
+
     pub fn adjust_selected(&mut self, direction: i32) -> bool {
         let previous_scale = self.scale;
         let delta = direction as f32 * self.step;
@@ -163,9 +185,9 @@ impl Params {
                 self.paused = true;
                 self.t += delta as f64;
             }
-            Control::Scale => self.scale = (self.scale + delta).clamp(0.01, 2.0),
-            Control::Brightness => self.brightness = (self.brightness + delta).clamp(0.0, 100.0),
-            Control::Gamma => self.gamma = (self.gamma + delta).clamp(0.01, 10.0),
+            Control::Scale => self.scale = (self.scale + delta).clamp(MIN_SCALE, MAX_SCALE),
+            Control::Brightness => self.brightness = (self.brightness + delta).clamp(MIN_BRIGHTNESS, MAX_BRIGHTNESS),
+            Control::Gamma => self.gamma = (self.gamma + delta).clamp(MIN_GAMMA, MAX_GAMMA),
             Control::Budget => self.budget = (self.budget + delta).clamp(MIN_BUDGET_MS, MAX_BUDGET_MS),
             control => {
                 if let Some(index) = control.coefficient_index() {
@@ -235,7 +257,7 @@ impl Params {
             .enumerate()
             .map(|(index, control)| {
                 let marker = if index == self.selected_control { '>' } else { ' ' };
-                let numeric = |name: &str, value: f64| format!("{} {:<12}{value:>11.3}", marker, name);
+                let numeric = |name: &str, value: f64| format!("{} {:<12}{value:>11.4}", marker, name);
                 match control {
                     Control::Speed => numeric("speed", self.speed as f64),
                     Control::Step => numeric("step", self.step as f64),
@@ -287,19 +309,19 @@ impl Cli {
             params.paused = true;
         }
         if let Some(scale) = self.scale {
-            params.scale = scale;
+            params.scale = scale.clamp(MIN_SCALE, MAX_SCALE);
         }
         if let Some(speed) = self.speed {
-            params.speed = speed;
+            params.speed = speed.clamp(MIN_SPEED, MAX_SPEED);
         }
         if let Some(brightness) = self.brightness {
-            params.brightness = brightness;
+            params.brightness = brightness.clamp(MIN_BRIGHTNESS, MAX_BRIGHTNESS);
         }
         if let Some(budget) = self.budget {
-            params.budget = budget;
+            params.budget = budget.clamp(MIN_BUDGET_MS, MAX_BUDGET_MS);
         }
         if let Some(gamma) = self.gamma {
-            params.gamma = gamma;
+            params.gamma = gamma.clamp(MIN_GAMMA, MAX_GAMMA);
         }
 
         params
