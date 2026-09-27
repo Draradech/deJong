@@ -1,4 +1,5 @@
 mod app;
+mod dedicated_vulkan;
 mod dejong;
 mod font;
 mod params;

@@ -4,10 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bytemuck = { version = "1.25.0", features = ["derive"] }
-clap = { version = "4.6.0", features = ["derive"] }
-env_logger = "0.11.10"
-pollster = "0.4.0"
-rand = "0.10.1"
-wgpu = "29.0.1"
+bytemuck = { version = "1.25.2", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
+env_logger = "0.11.11"
+pollster = "1.0.1"
+rand = "0.10.3"
+wgpu = "30.0.1"
+wgpu-hal = { version = "30.0.1", default-features = false, features = ["vulkan"] }
 winit = "0.30.13"
+ash = "0.38"

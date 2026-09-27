@@ -14,6 +14,9 @@ pub struct QueryId(usize);
 
 pub type BufferBinding = (u32, BufferId);
 
+// A single device allocation per large buffer; small buffers stay suballocated by wgpu.
+const DEDICATED_BUFFER_MIN_SIZE: u64 = 1 << 20;
+
 enum Pass {
     Clear(BufferId),
     Compute(ComputePass),
@@ -47,6 +50,7 @@ pub struct Renderer {
     buffers: Vec<wgpu::Buffer>,
     queries: Vec<wgpu::QuerySet>,
     passes: Vec<Pass>,
+    dedicated_buffers_enabled: bool,
 }
 
 fn create_bind_group(
@@ -87,6 +91,7 @@ impl Renderer {
         surface.configure(&device, &config);
         let info = adapter.get_info();
         println!("adapter: {} ({:?})", info.name, info.backend);
+        let dedicated_buffers_enabled = info.backend == wgpu::Backend::Vulkan;
         Self {
             surface,
             device,
@@ -96,6 +101,7 @@ impl Renderer {
             buffers: Vec::new(),
             queries: Vec::new(),
             passes: Vec::new(),
+            dedicated_buffers_enabled,
         }
     }
 
@@ -119,10 +125,28 @@ impl Renderer {
         id
     }
 
+    fn make_buffer(&mut self, size: u64, usage: wgpu::BufferUsages) -> wgpu::Buffer {
+        let desc = wgpu::BufferDescriptor { label: None, size, usage, mapped_at_creation: false };
+        if self.dedicated_buffers_enabled
+            && size >= DEDICATED_BUFFER_MIN_SIZE
+            && crate::dedicated_vulkan::can_import(&desc)
+        {
+            match crate::dedicated_vulkan::create_buffer(&self.device, &desc) {
+                Ok(buffer) => {
+                    return buffer;
+                }
+                Err(error) => {
+                    eprintln!("dedicated Vulkan allocation failed: {error}; using ordinary wgpu allocation");
+                    self.dedicated_buffers_enabled = false;
+                }
+            }
+        }
+        self.device.create_buffer(&desc)
+    }
+
     pub fn create_buffer(&mut self, size: u64, usage: wgpu::BufferUsages) -> BufferId {
         let id = BufferId(self.buffers.len());
-        let buffer =
-            self.device.create_buffer(&wgpu::BufferDescriptor { label: None, size, usage, mapped_at_creation: false });
+        let buffer = self.make_buffer(size, usage);
         self.buffers.push(buffer);
         id
     }
@@ -132,8 +156,7 @@ impl Renderer {
     }
 
     pub fn replace_buffer(&mut self, id: BufferId, size: u64, usage: wgpu::BufferUsages) {
-        self.buffers[id.0] =
-            self.device.create_buffer(&wgpu::BufferDescriptor { label: None, size, usage, mapped_at_creation: false });
+        self.buffers[id.0] = self.make_buffer(size, usage);
         for pass in &mut self.passes {
             match pass {
                 Pass::Compute(pass) if pass.bindings.iter().any(|(_, buffer)| *buffer == id) => {
@@ -348,6 +371,6 @@ impl Renderer {
 
         self.queue.submit([cmd_buffer]);
 
-        surface_texture.present();
+        self.queue.present(surface_texture);
     }
 }
